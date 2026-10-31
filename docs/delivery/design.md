@@ -1,6 +1,7 @@
 # Schema delivery: design
 
-Status: accepted after council review (round 1 of 1).
+Status: accepted after council review (round 1 of 1). Decision record:
+`docs/adr/0007-features-delivered-as-versioned-sql.md`.
 Step 3 of the plan in `README.md`. The auth package's SQL comes after this
 design and uses it.
 
