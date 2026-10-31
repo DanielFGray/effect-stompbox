@@ -13,7 +13,8 @@ the apps.
 ## Terms
 
 - **Core**: at least three apps do the same thing. The framework owns it.
-- **Extension point**: at least three apps need the concern, but they do it
+- **Extension point**: in the terms of `docs/adr/0003`, a service with more
+  than one adapter. At least three apps need the concern, but they do it
   differently. The framework defines the interface; the app supplies the part
   that differs.
 - **App-only**: fewer than three apps need it. It stays in the app.

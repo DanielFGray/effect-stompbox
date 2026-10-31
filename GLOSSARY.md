@@ -44,3 +44,23 @@ match the role contract.
 **Role contract**:
 The roles, logins and memberships that the framework requires of a database
 host.
+
+## Composition
+
+**Feature**:
+A part of the framework that an app adds by choice, such as password auth or
+rate limits.
+_Avoid_: plugin, module, extension
+
+**Service**:
+The interface that a feature needs from the outside world, such as a mail
+transport.
+_Avoid_: port, driver
+
+**Adapter**:
+One implementation of a service, such as SMTP for the mail transport.
+_Avoid_: driver, provider, backend
+
+**Postgres stack**:
+The set of default adapters that serves every feature.
+_Avoid_: preset, starter, kit
