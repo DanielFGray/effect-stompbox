@@ -60,16 +60,16 @@ export class Visitor extends Context.Service<
 			const roles = yield* startupCheck.pipe(Effect.provideService(SqlClient, api))
 			const run = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
 				Effect.gen(function* () {
-					if (yield* InsideVisitorRun) return yield* Effect.die(new NestedVisitorRun())
+					// An open transaction on the API pool means a request is already running;
+					// `afterCommit` callbacks run without it, so they may start a new one.
+					if (Option.isSome(yield* Effect.serviceOption(api.transactionService)))
+						return yield* Effect.die(new NestedVisitorRun())
 					const session = yield* RequestSession
 					return yield* api.withTransaction(
 						Effect.gen(function* () {
 							yield* api`select set_config('role', ${roles.visitor}, true),
 							                  set_config('my.session_id', ${Option.getOrElse(session, () => '')}, true)`
-							return yield* effect.pipe(
-								Effect.provideService(SqlClient, api),
-								Effect.provideService(InsideVisitorRun, true),
-							)
+							return yield* effect.pipe(Effect.provideService(SqlClient, api))
 						}),
 					)
 				})
@@ -116,11 +116,3 @@ const startupCheck = Effect.gen(function* () {
 	if (errors.length > 0) return yield* new StartupCheckFailed({ findings: errors })
 	return roles
 })
-
-/** True inside `Visitor.run`, so a nested call can be refused. */
-const InsideVisitorRun = Context.Reference<boolean>(
-	'@effect-backend/visitor/InsideVisitorRun',
-	{
-		defaultValue: () => false,
-	},
-)

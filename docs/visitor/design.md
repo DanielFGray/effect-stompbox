@@ -23,8 +23,7 @@ database errors become domain errors.
 
 ## Decision: queries run through `SqlClient`
 
-This settles open decision 2 of `docs/matrix/README.md`, and gets its own ADR
-(0006).
+This settles open decision 2 of `docs/matrix/README.md`; the decision is ADR 0006.
 
 The library runs every statement through Effect's `SqlClient`
 (`effect/sql/SqlClient`, driver `@effect/sql-pg`). Reasons:
@@ -144,15 +143,19 @@ step 3 provides), and drops it after.
 4. A query on `OwnerPool` inside `Visitor.run` does not join the visitor
    transaction.
 5. The startup check refuses a database where the API login inherits the
-   visitor role.
+   visitor role. Run by hand, because planting the fault needs a superuser:
+   granting the visitor role to the API login with `inherit true` made the
+   startup check fail with C1, and it started again after the grant was
+   restored. The automated test plants a fault the API login can cause
+   itself: a `DATABASE_VISITOR` override naming a role it cannot switch to.
 6. A function that raises `CREDS` maps to the caller's tagged error, and a
    caller that names `23505` gets its tagged error for a unique violation;
    an unmapped error becomes a defect. A deferred constraint that fails at
    commit maps the same way.
 7. Queries run concurrently inside `Visitor.run` (`Effect.all` with
    concurrency) all run on the transaction's one connection, in order, and
-   all see the visitor's rows, both through `SqlClient` and through the
-   Kysely adapter.
+   all see the visitor's rows. Through the Kysely adapter: pending, because the
+   adapter does not exist yet.
 8. The escape test: on a pool of size 1, a request forks a fiber that
    queries after a delay, then returns; a second request for another session
    runs. The forked fiber's query must never run inside the second request's
@@ -162,6 +165,8 @@ step 3 provides), and drops it after.
    unchanged.
 10. The startup check refuses an API pool URL that connects as the migration
     login.
+11. Work registered with `afterCommit` can start a new `Visitor.run`, and it
+    sees the committed rows.
 
 Then the checker passes on the test database, and the effect-web-template's
 `requestDatabase.ts` can be rewritten on the library in a throwaway branch

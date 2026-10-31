@@ -3,6 +3,7 @@ import {
 	Cause,
 	Config,
 	ConfigProvider,
+	Deferred,
 	Effect,
 	Exit,
 	Fiber,
@@ -254,7 +255,39 @@ layer(live, { excludeTestServices: true })('Visitor.run', (it) => {
 		}),
 	)
 
-	const escape = (end: Effect.Effect<void, BadCredentials>) =>
+	it.effect('lets afterCommit work start a new request, which sees the commit', () =>
+		Effect.gen(function* () {
+			const t = yield* fixture
+			const after = yield* Deferred.make<ReadonlyArray<string>>()
+			yield* as('a')(
+				Effect.gen(function* () {
+					const sql = yield* SqlClient
+					yield* t.insert('committed')
+					yield* sql.afterCommit(
+						as('a')(t.bodies).pipe(
+							Effect.orDie,
+							Effect.flatMap((bodies) => Deferred.succeed(after, bodies)),
+							Effect.asVoid,
+						),
+					)
+				}),
+			)
+			assert.deepStrictEqual(yield* Deferred.await(after), ['committed'])
+		}),
+	)
+
+	/**
+	 * Request a forks a fiber that queries 100 ms later, then ends with `end`;
+	 * `settle` waits for request a or interrupts it. Request b then holds the
+	 * pool's only connection while the forked fiber wakes up. Returns the forked
+	 * fiber when request a succeeded.
+	 */
+	const escape = (
+		end: Effect.Effect<void, BadCredentials>,
+		settle: <A, E>(
+			request: Fiber.Fiber<A, E>,
+		) => Effect.Effect<Exit.Exit<A, E>> = Fiber.await,
+	) =>
 		Effect.gen(function* () {
 			const t = yield* fixture
 			yield* as('b')(t.insert('b'))
@@ -267,11 +300,12 @@ layer(live, { excludeTestServices: true })('Visitor.run', (it) => {
 					return fiber
 				}),
 			).pipe(
-				Effect.asSome,
-				Effect.catchTag('BadCredentials', () => Effect.succeedNone),
+				Effect.forkChild,
+				Effect.flatMap(settle),
+				Effect.map((exit) =>
+					Exit.isSuccess(exit) ? Option.some(exit.value) : Option.none(),
+				),
 			)
-			// The second request holds the pool's only connection while the
-			// forked fiber wakes up and queries.
 			const seen = yield* as('b')(
 				Effect.flatMap(
 					Effect.service(SqlClient),
@@ -296,6 +330,17 @@ layer(live, { excludeTestServices: true })('Visitor.run', (it) => {
 
 	it.effect('stops a forked fiber after a failed request', () =>
 		Effect.asVoid(escape(Effect.fail(new BadCredentials()))),
+	)
+
+	it.effect('stops a forked fiber after an interrupted request', () =>
+		Effect.asVoid(
+			escape(Effect.never, (request) =>
+				Effect.sleep('20 millis').pipe(
+					Effect.andThen(Fiber.interrupt(request)),
+					Effect.andThen(Fiber.await(request)),
+				),
+			),
+		),
 	)
 })
 
