@@ -2,6 +2,7 @@ import { Effect, Schema } from 'effect'
 import { SqlClient } from 'effect/sql/SqlClient'
 import * as SqlSchema from 'effect/sql/SqlSchema'
 
+import { isAppObject } from './Catalog.ts'
 import { findings } from './Finding.ts'
 
 /**
@@ -114,23 +115,13 @@ const ownedBy = (sql: SqlClient, role: string) => sql`
 const appGrants = (sql: SqlClient) => sql`(
   select format('schema %s', n.nspname) as object, a.privilege_type as privilege, a.grantee
   from pg_namespace n, aclexplode(n.nspacl) a
-  where n.nspname !~ '^pg_' and n.nspname <> 'information_schema'
-    and not ${extensionMember(sql, 'pg_namespace', 'n.oid')}
+  where ${isAppObject(sql, 'pg_namespace', 'n.oid', 'n.nspname')}
   union all
   select format('relation %s', c.oid::regclass), a.privilege_type, a.grantee
   from pg_class c join pg_namespace n on n.oid = c.relnamespace, aclexplode(c.relacl) a
-  where n.nspname !~ '^pg_' and n.nspname <> 'information_schema'
-    and not ${extensionMember(sql, 'pg_class', 'c.oid')}
+  where ${isAppObject(sql, 'pg_class', 'c.oid', 'n.nspname')}
   union all
   select format('function %s', p.oid::regprocedure), a.privilege_type, a.grantee
   from pg_proc p join pg_namespace n on n.oid = p.pronamespace, aclexplode(p.proacl) a
-  where n.nspname !~ '^pg_' and n.nspname <> 'information_schema'
-    and not ${extensionMember(sql, 'pg_proc', 'p.oid')}
+  where ${isAppObject(sql, 'pg_proc', 'p.oid', 'n.nspname')}
 )`
-
-/** True when the object belongs to an extension (`pg_depend.deptype = 'e'`). */
-const extensionMember = (sql: SqlClient, catalog: string, oid: string) => sql`exists (
-  select 1 from pg_depend e
-  where e.classid = ${catalog}::regclass
-    and e.objid = ${sql.literal(oid)}
-    and e.deptype = 'e')`

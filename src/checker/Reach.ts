@@ -1,6 +1,7 @@
 import { Effect, FileSystem, Schema } from 'effect'
 import { SqlClient } from 'effect/sql/SqlClient'
 
+import { isAppObject } from './Catalog.ts'
 import { Finding, findings } from './Finding.ts'
 import type { RoleContract } from './Roles.ts'
 
@@ -18,16 +19,13 @@ export const visitorReach = Effect.fn('visitorReach')(function* (roles: RoleCont
 	const rows = yield* sql`
     with app_schema as (
       select n.oid, n.nspname from pg_namespace n
-      where n.nspname !~ '^pg_' and n.nspname <> 'information_schema'
-        and not exists (select 1 from pg_depend e
-          where e.classid = 'pg_namespace'::regclass and e.objid = n.oid and e.deptype = 'e')
+      where ${isAppObject(sql, 'pg_namespace', 'n.oid', 'n.nspname')}
         and has_schema_privilege(${v}, n.oid, 'USAGE')
     ),
     rel as (
       select c.oid, c.relkind from pg_class c join app_schema s on s.oid = c.relnamespace
       where c.relkind in ('r', 'p', 'v', 'm', 'f', 'S')
-        and not exists (select 1 from pg_depend e
-          where e.classid = 'pg_class'::regclass and e.objid = c.oid and e.deptype = 'e')
+        and ${isAppObject(sql, 'pg_class', 'c.oid', 's.nspname')}
     )
     select format('schema %I', nspname) as line from app_schema
     union all
@@ -54,8 +52,7 @@ export const visitorReach = Effect.fn('visitorReach')(function* (roles: RoleCont
     select format('function %s', p.oid::regprocedure)
     from pg_proc p join app_schema s on s.oid = p.pronamespace
     where has_function_privilege(${v}, p.oid, 'EXECUTE')
-      and not exists (select 1 from pg_depend e
-        where e.classid = 'pg_proc'::regclass and e.objid = p.oid and e.deptype = 'e')
+      and ${isAppObject(sql, 'pg_proc', 'p.oid', 's.nspname')}
     union all
     select format('extension %I %s in %I', x.extname, x.extversion, n.nspname)
     from pg_extension x join pg_namespace n on n.oid = x.extnamespace
@@ -147,9 +144,7 @@ export const c4 = Effect.fn('c4')(function* (roles: RoleContract) {
     with creator as (
       select p.proowner as role
       from pg_proc p join pg_namespace n on n.oid = p.pronamespace
-      where n.nspname !~ '^pg_' and n.nspname <> 'information_schema'
-        and not exists (select 1 from pg_depend e
-          where e.classid = 'pg_proc'::regclass and e.objid = p.oid and e.deptype = 'e')
+      where ${isAppObject(sql, 'pg_proc', 'p.oid', 'n.nspname')}
       union
       select to_regrole(${owner}) where to_regrole(${owner}) is not null
     )
