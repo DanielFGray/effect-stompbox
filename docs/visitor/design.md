@@ -1,6 +1,6 @@
 # Visitor transaction library: design
 
-Status: draft for council review. No code exists yet. Step 2 of the plan in
+Status: revised after council review (round 1 of 1). No code exists yet. Step 2 of the plan in
 `README.md`.
 
 ## What it is
@@ -56,7 +56,12 @@ The library does not depend on Kysely; a small adapter module does.
 2. **Startup check.** Building the `ApiPool` layer runs checks C1 and C2 of
    the security checker (`docs/checker/design.md`) and fails if either
    reports an error. A server with a wrong role setup does not start. ADR 0002
-   requires this. The checks run on the API pool, because an app that signs
+   requires this. It also checks that the API pool really connects as the
+   API login (`session_user`), because C1 and C2 check roles by name and
+   would pass with a URL for the migration login. The visitor role name is
+   derived from the database name, as the checker does, with an optional
+   override for a host whose roles use other names; the check then runs on
+   the role that requests use. The checks run on the API pool, because an app that signs
    in through SQL functions needs no owner pool at runtime. The API login can
    read every catalog the checks use (`pg_roles`, `pg_shdepend`,
    `pg_default_acl`, `pg_policy`, the ACL columns), and gets the same counts
@@ -68,7 +73,31 @@ The library does not depend on Kysely; a small adapter module does.
    and `my.session_id`, and runs `effect` with `SqlClient` provided as the API
    pool's client, so every query in it joins the transaction. The role name is
    a trusted value and is passed to `set_config` as a bound parameter, like
-   the session id; neither is ever interpolated into SQL text.
+   the session id; neither is ever interpolated into SQL text. Three rules
+   bound it:
+   - **No fiber started inside `Visitor.run` outlives it.** The transaction's
+     connection travels in the fiber's context, and a forked fiber copies
+     that context. A fiber that outlives the commit holds a connection the
+     pool has given to the next request, so its queries would run as another
+     visitor with another session. `Visitor.run` interrupts every fiber it
+     started before it commits. Work that must happen after the request uses
+     `SqlClient`'s `afterCommit`, which removes the transaction from the
+     context.
+   - **`Visitor.run` does not nest.** A nested `withTransaction` is a
+     savepoint, and `set_config(..., true)` inside it stays in force for the
+     outer transaction, so a nested call with another session would change
+     the outer request's identity. A nested `Visitor.run` fails as a defect.
+     Ordinary nested transactions inside one `Visitor.run` stay allowed.
+   - **Errors are mapped outside the transaction.** A failed statement aborts
+     the Postgres transaction even when the code catches the mapped error, so
+     `Visitor.run` rolls back first and maps after. Errors raised at commit
+     (deferred constraints) are mapped the same way. Code that must recover
+     from a failed statement and keep querying opens a nested transaction
+     (a savepoint) around it.
+
+   Limit: SQL that runs as the visitor can run `RESET ROLE` and return to the
+   API login. The library runs only SQL the app wrote, so this is safe as
+   long as no request can supply SQL text.
 5. **Error mapping.** A function that turns `SqlError` into the app's tagged
    errors by SQLSTATE code, for the codes the caller names; every other
    database error becomes a logged defect. The apps raise their own 5-letter
@@ -108,29 +137,45 @@ and a policy on `current_user_id()`, and drops it after.
    transaction.
 5. The startup check refuses a database where the API login inherits the
    visitor role.
-6. A function that raises `CREDS` maps to the caller's tagged error; an
-   unmapped error becomes a defect.
+6. A function that raises `CREDS` maps to the caller's tagged error, and a
+   caller that names `23505` gets its tagged error for a unique violation;
+   an unmapped error becomes a defect. A deferred constraint that fails at
+   commit maps the same way.
 7. Queries run concurrently inside `Visitor.run` (`Effect.all` with
    concurrency) all run on the transaction's one connection, in order, and
-   all see the visitor's rows.
-8. A fiber forked inside `Visitor.run` that queries after the transaction
-   ends does not run as the visitor: it fails, or it runs on a fresh
-   connection as the API login. Which one happens decides whether `Visitor.run`
-   must forbid such forks; the test records it.
+   all see the visitor's rows, both through `SqlClient` and through the
+   Kysely adapter.
+8. The escape test: on a pool of size 1, a request forks a fiber that
+   queries after a delay, then returns; a second request for another session
+   runs. The forked fiber's query must never run inside the second request's
+   transaction. Repeat with the first request failing and with it
+   interrupted.
+9. A nested `Visitor.run` fails, and the outer request's session is
+   unchanged.
+10. The startup check refuses an API pool URL that connects as the migration
+    login.
 
 Then the checker passes on the test database, and the effect-web-template's
 `requestDatabase.ts` can be rewritten on the library in a throwaway branch
 with no change to its services' code beyond imports. That port is evidence,
 not a migration.
 
-## Open questions
+The owner pool is optional: an app that signs in through SQL functions runs
+with the API pool only.
 
-- **Package layout.** The startup check reuses C1 and C2, so the checker's
-  role module must be a library the visitor package imports. Proposed: a bun
-  workspace with `packages/checker` (library and CLI) and `packages/visitor`.
-- **Visitor role name.** Read from `DATABASE_VISITOR`, as the apps do, or
-  derive it from the database name, as the checker does? Deriving removes a
-  setting that can disagree with the database; reading it supports a host
-  whose roles do not follow the provisioner's names.
-- **Session id type.** The apps store UUIDs; Yielded uses its own ids. The
-  bridge passes text, and `current_session_id()` casts.
+Row-level security limits what the visitor's queries return at run time.
+It does not stop code from writing a query against a table the visitor
+cannot reach; that query fails only when it runs. The typed handles of the
+follow-up step close that gap at compile time, and until they ship it stays
+open.
+
+## Package layout
+
+A bun workspace with `packages/checker` (library and CLI) and
+`packages/visitor`. The visitor package imports C1 and C2 from the checker
+for its startup check.
+
+## Session id type
+
+The apps store UUIDs; Yielded uses its own ids. The bridge passes text, and
+`current_session_id()` casts.
