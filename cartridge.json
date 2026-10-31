@@ -1,0 +1,80 @@
+{
+	"apiVersion": "server-ansible/v2",
+	"name": "effect-backend",
+	"postgres": [
+		{
+			"database": "effect_backend_setlist",
+			"extensions": ["citext", "pgcrypto", "uuid-ossp"]
+		},
+		{
+			"database": "effect_backend_setlist_base",
+			"extensions": ["citext", "pgcrypto", "uuid-ossp"]
+		},
+		{
+			"database": "effect_backend_dfg_rocks",
+			"extensions": ["citext", "pgcrypto", "uuid-ossp"]
+		},
+		{
+			"database": "effect_backend_dfg_rocks_base",
+			"extensions": ["citext", "pgcrypto", "uuid-ossp"]
+		},
+		{
+			"database": "effect_backend_template",
+			"extensions": [
+				"uuid-ossp",
+				"citext",
+				"btree_gin",
+				"pgcrypto",
+				"pg_trgm",
+				"fuzzystrmatch",
+				"pgsodium"
+			]
+		},
+		{
+			"database": "effect_backend_dfg_codes",
+			"extensions": ["citext", "pgcrypto"]
+		}
+	],
+	"services": [
+		{
+			"secrets": [
+				{
+					"_tag": "PostgresCredentials",
+					"database": "effect_backend_setlist",
+					"login": "migration",
+					"urlEnv": "CORPUS_SETLIST_URL"
+				},
+				{
+					"_tag": "PostgresCredentials",
+					"database": "effect_backend_setlist_base",
+					"login": "migration",
+					"urlEnv": "CORPUS_SETLIST_BASE_URL"
+				},
+				{
+					"_tag": "PostgresCredentials",
+					"database": "effect_backend_dfg_rocks",
+					"login": "migration",
+					"urlEnv": "CORPUS_DFG_ROCKS_URL"
+				},
+				{
+					"_tag": "PostgresCredentials",
+					"database": "effect_backend_dfg_rocks_base",
+					"login": "migration",
+					"urlEnv": "CORPUS_DFG_ROCKS_BASE_URL"
+				},
+				{
+					"_tag": "PostgresCredentials",
+					"database": "effect_backend_template",
+					"login": "migration",
+					"urlEnv": "CORPUS_TEMPLATE_URL"
+				},
+				{
+					"_tag": "PostgresCredentials",
+					"database": "effect_backend_dfg_codes",
+					"login": "migration",
+					"urlEnv": "CORPUS_DFG_CODES_URL"
+				}
+			]
+		}
+	]
+}

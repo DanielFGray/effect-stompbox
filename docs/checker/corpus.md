@@ -424,9 +424,8 @@ image that the platform cartridge pins (`src/devdb/Cluster.ts:20-23,43-55`).
 
 ## Open questions
 
-1. Does the platform Postgres image ship pgsodium, and must it be in
-   `shared_preload_libraries` for `crypto_pwhash_str`? Without it the
-   effect-web-template build fails at `0140-user_authentications.sql:88`.
+1. Answered: the cluster image ships pgsodium 3.1.9 and does not preload
+   it; the effect-web-template build succeeds without the preload.
 2. Bug 3: is the visitor meant to execute the new
    `create_single_booking_obligation(uuid)` and
    `settle_single_booking_cancellation(uuid, integer)`? The old signatures
@@ -442,6 +441,8 @@ image that the platform cartridge pins (`src/devdb/Cluster.ts:20-23,43-55`).
 6. effect-web-template's cartridge does not map `DATABASE_VISITOR` or
    `DATABASE_AUTHENTICATOR`, which its `.gmrc` requires as `!ENV`. A
    production migrate would fail at settings parse.
-7. Scratch cluster: a separate throwaway container, or unique role names on
-   `ops-dev-pg17`? Same role names there would share roles with the dev
-   databases.
+7. Answered: the shared `ops-dev-pg17` cluster. `cartridge.json` in this
+   repo declares one database per corpus build, named `effect_backend_<build>`,
+   so `ops dev db up` gives each its own roles and extensions, and
+   `scripts/corpus-build.sh` builds them. A `_base` build has committed
+   migrations only.

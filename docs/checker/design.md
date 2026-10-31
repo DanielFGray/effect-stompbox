@@ -198,5 +198,6 @@ check that flags many correct objects is wrong, not strict.
 ## Open questions
 
 - Is the visitor surface file one file per app, or one per schema?
-- Does the checker build the scratch databases itself, or rely on each app's
-  migration command? The corpus records what each app needs.
+- Who builds the scratch databases for an app that adopts the checker: the
+  checker, or the app's migration command? The corpus builds its own with
+  `scripts/corpus-build.sh` on the shared dev cluster.
