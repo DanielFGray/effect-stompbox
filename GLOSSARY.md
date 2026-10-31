@@ -64,3 +64,15 @@ _Avoid_: driver, provider, backend
 **Postgres stack**:
 The set of default adapters that serves every feature.
 _Avoid_: preset, starter, kit
+
+## Auth
+
+**Session bridge**:
+The point where an auth implementation tells Postgres who the current user is,
+so that row-level security can apply.
+_Avoid_: auth context, auth hook
+
+**Auth implementation**:
+A complete sign-in system that provides the session bridge, such as the
+starter SQL functions or Yielded Auth.
+_Avoid_: auth provider (OAuth uses "provider")
