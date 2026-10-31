@@ -5,9 +5,8 @@ status: accepted
 # Queries run through Effect's SqlClient
 
 Every query the framework runs goes through Effect's `SqlClient`
-(`effect/sql`, driver `@effect/sql-pg`). Kysely stays the query builder the
-apps write in, through an adapter that compiles a builder and runs the
-compiled SQL on `SqlClient`. The visitor package does not depend on Kysely.
+(`effect/sql`, driver `@effect/sql-pg`), and apps write their queries as
+`SqlClient` statements. The framework ships no query builder.
 
 The visitor role and the session are transaction-local settings, so every
 query of a request must run on the transaction's connection. `SqlClient`
@@ -21,13 +20,16 @@ visitor role.
 
 - **`pg` with Kysely's own driver**, as three apps run today. Rejected for
   the reason above.
+- **Kysely compiled, run through `SqlClient`**, as setlist and dfg.rocks do.
+  Deferred: it adds a second way to write a query before the first is
+  proven. An adapter can be added later without changing this decision.
+- **Reylo** (typed `.sql` files). Rejected: it decodes rows itself and runs
+  only on the drivers it lists, and `@effect/sql-pg` is not one of them.
 
 ## Consequences
 
-- The effect-web-template, dfg.codes and postgres.garden change how their
-  queries run when they adopt the package; their Kysely queries stay.
-- setlist and dfg.rocks already run this way, each with its own bridge; one
-  shared adapter replaces both.
+- An app that adopts the package rewrites its Kysely queries as `SqlClient`
+  statements, or keeps its own bridge as setlist and dfg.rocks do today.
 - `SqlError` arrives classified, and the driver's SQLSTATE code is on its
   cause, which `mapSqlState` reads.
 - `@effect/sql-pg` refuses a statement on a released connection lease, so a

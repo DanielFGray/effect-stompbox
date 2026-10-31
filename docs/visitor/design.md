@@ -43,9 +43,8 @@ The library runs every statement through Effect's `SqlClient`
   violation, constraint, permission, unknown) and the driver's original
   error, which holds the SQLSTATE code.
 
-A query builder is optional and sits on top. Kysely stays usable the
-dfg.rocks way: compile the builder, run the compiled SQL through `SqlClient`.
-The library does not depend on Kysely; a small adapter module does.
+Apps write queries as `SqlClient` statements. The library ships no query
+builder (ADR 0006).
 
 ## What the package provides
 
@@ -154,8 +153,7 @@ step 3 provides), and drops it after.
    commit maps the same way.
 7. Queries run concurrently inside `Visitor.run` (`Effect.all` with
    concurrency) all run on the transaction's one connection, in order, and
-   all see the visitor's rows. Through the Kysely adapter: pending, because the
-   adapter does not exist yet.
+   all see the visitor's rows.
 8. The escape test: on a pool of size 1, a request forks a fiber that
    queries after a delay, then returns; a second request for another session
    runs. The forked fiber's query must never run inside the second request's
@@ -168,10 +166,7 @@ step 3 provides), and drops it after.
 11. Work registered with `afterCommit` can start a new `Visitor.run`, and it
     sees the committed rows.
 
-Then the checker passes on the test database, and the effect-web-template's
-`requestDatabase.ts` can be rewritten on the library in a throwaway branch
-with no change to its services' code beyond imports. That port is evidence,
-not a migration.
+Then the checker passes on the test database.
 
 The owner pool is optional: an app that signs in through SQL functions runs
 with the API pool only.
