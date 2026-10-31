@@ -129,18 +129,20 @@ const surfaceHeader = `# Visitor surface: everything the visitor role can reach.
 # change to this file as a change to what anonymous and signed-in users reach.`
 
 /**
- * C4: no default privilege makes new functions executable by PUBLIC or by
- * the visitor. Postgres grants EXECUTE to PUBLIC on every new function unless
+ * C4: no default privilege makes new functions executable by PUBLIC, which
+ * reaches every role, including the API login. A default grant to the visitor
+ * is the convention: functions in the visitor's schemas are callable unless
+ * revoked, and C3 shows each new one as a change to the surface file. Postgres grants EXECUTE to PUBLIC on every new function unless
  * a global default-privilege entry for the creating role leaves PUBLIC out;
  * a per-schema entry can only add grants, never remove that one.
  */
 export const c4 = Effect.fn('c4')(function* (roles: RoleContract) {
 	const sql = yield* SqlClient
-	const { owner, visitor } = roles
+	const { owner } = roles
 	return yield* findings({
 		check: 'C4',
 		level: 'error',
-		rule: 'No default privilege grants EXECUTE on new functions to PUBLIC or the visitor.',
+		rule: 'No default privilege grants EXECUTE on new functions to PUBLIC.',
 	})(sql`
     with creator as (
       select p.proowner as role
@@ -158,12 +160,12 @@ export const c4 = Effect.fn('c4')(function* (roles: RoleContract) {
       where d.defaclrole = c.role and d.defaclnamespace = 0 and d.defaclobjtype = 'f')
     union all
     select format('default privileges for role %s%s', c.role::regrole, coalesce(' in schema ' || quote_ident(n.nspname), '')),
-           'new functions are executable by ' || case when a.grantee = 0 then 'PUBLIC' else a.grantee::regrole::text end
+           'new functions are executable by PUBLIC'
     from pg_default_acl d
       join creator c on c.role = d.defaclrole
       left join pg_namespace n on n.oid = d.defaclnamespace,
       aclexplode(d.defaclacl) a
     where d.defaclobjtype = 'f' and a.privilege_type = 'EXECUTE'
-      and (a.grantee = 0 or a.grantee = to_regrole(${visitor}))
+      and a.grantee = 0
     order by 1, 2`)
 })
