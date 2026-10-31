@@ -6,7 +6,7 @@ status: proposed
 
 An app can choose how sign-in works: the SQL auth functions from
 graphile-starter, or Yielded Auth (`docs/research/yielded.md`). Row-level
-security must work the same with either. The framework therefore fixes only
+security must work the same with either. The project therefore fixes only
 the point where the two meet Postgres, called the session bridge, and treats
 each sign-in system as an adapter behind it.
 
@@ -29,7 +29,7 @@ The template's `current_user_id()` does not check expiry yet
 
 **TypeScript side.** A service, here called `RequestSession`, turns the
 current request into an optional session id. The visitor pool's transaction
-sets `my.session_id` from it and switches to the visitor role. The framework
+sets `my.session_id` from it and switches to the visitor role. The project
 owns that transaction; the auth implementation provides `RequestSession`.
 
 ## The two implementations
@@ -41,7 +41,7 @@ owns that transaction; the auth implementation provides `RequestSession`.
 | Sessions table           | `app_private.sessions`              | Yielded session role mapped onto `app_private.sessions` |
 | Password hash            | bcrypt in pgcrypto                  | Argon2id or scrypt                                      |
 | `RequestSession`         | cookie `id.secret`, SHA-256 lookup  | `getSession()` from Yielded                             |
-| HTTP contract and client | framework `HttpApi` group           | Yielded `AuthContract` and client                       |
+| HTTP contract and client | package `HttpApi` group             | Yielded `AuthContract` and client                       |
 | Apps that use it         | dfg.rocks, setlist, postgres.garden | none                                                    |
 
 Both share the users table: Yielded maps its subject onto the app's

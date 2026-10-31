@@ -4,17 +4,17 @@ status: proposed
 
 # Features are opt-in layers; adapters are Effect layers
 
-The framework is an Effect backend with Postgres as the default database. An
+The project is an Effect backend with Postgres as the default database. An
 app chooses the features it wants, and it can replace the part of a feature
-that talks to the outside world. The framework uses Effect's own mechanism for
+that talks to the outside world. The project uses Effect's own mechanism for
 this and adds no plugin system:
 
 - A **service** is a `Context.Service` tag: the interface a feature needs.
 - An **adapter** is a `Layer` that implements a service.
 - A **feature** is a `Layer` (plus, where it has them, an `HttpApi` group and a
   SQL module) whose requirements name the services it needs.
-- The **Postgres stack** is one `Layer` that provides the default adapter for
-  every service. An app can use it whole, or build its own from the parts.
+- The **template** wires the default adapter for every service with plain
+  `Layer` composition. No package exports a stack layer (ADR 0005).
 
 Effect already uses this shape. `RateLimiter.layer` requires a
 `RateLimiterStore`, and `layerStoreMemory` and `layerStoreRedis` are two
@@ -25,12 +25,13 @@ between features visible without a configuration file.
 
 ## Which adapters ship
 
-The framework ships one adapter per service: the one the Postgres stack uses.
+The project ships one adapter per service: the default that the template
+uses.
 It ships a second adapter only when an existing app already uses it, or when
 Effect already provides it. It does not write adapters for hosts or vendors
 that no app uses.
 
-| Service                                       | Postgres stack adapter        | Other adapters an app already uses         |
+| Service                                       | Default adapter               | Other adapters an app already uses         |
 | --------------------------------------------- | ----------------------------- | ------------------------------------------ |
 | HTTP server host (`HttpServer`, Effect)       | Bun                           | Node (Effect provides both)                |
 | Database client                               | `pg` pools, owner and visitor | none                                       |

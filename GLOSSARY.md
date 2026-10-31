@@ -1,7 +1,7 @@
 # effect-backend
 
-A backend framework for Effect apps on Postgres, where row-level security
-decides what each request may read and write.
+Packages and a template for multi-user Effect apps on Postgres, where
+row-level security decides what each request may read and write.
 
 ## Database roles
 
@@ -42,13 +42,13 @@ A program that creates the app's database and roles on a database host to
 match the role contract.
 
 **Role contract**:
-The roles, logins and memberships that the framework requires of a database
+The roles, logins and memberships that the project requires of a database
 host.
 
 ## Composition
 
 **Feature**:
-A part of the framework that an app adds by choice, such as password auth or
+A part of the project that an app adds by choice, such as password auth or
 rate limits.
 _Avoid_: plugin, module, extension
 
@@ -61,9 +61,14 @@ _Avoid_: port, driver
 One implementation of a service, such as SMTP for the mail transport.
 _Avoid_: driver, provider, backend
 
-**Postgres stack**:
-The set of default adapters that serves every feature.
-_Avoid_: preset, starter, kit
+**Package**:
+A versioned part of the project that owns security-critical code or SQL, and
+that an app upgrades rather than copies.
+_Avoid_: module, plugin
+
+**Template**:
+The starting code an app copies and then owns, wired with plain Effect.
+_Avoid_: starter, boilerplate, stack
 
 ## Auth
 

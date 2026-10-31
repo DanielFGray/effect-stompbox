@@ -2,10 +2,10 @@
 status: proposed
 ---
 
-# The framework declares its roles; the database host creates them
+# The project declares its roles; the database host creates them
 
 An app connects to Postgres through two connection strings and one role name.
-The framework does not create roles or databases. It declares the roles it
+The project does not create roles or databases. It declares the roles it
 needs, and a separate provisioner creates them on the database host. Any
 Postgres host that can run that provisioner can serve the app, so moving to
 another vendor means running the provisioner there and changing the connection
@@ -34,7 +34,7 @@ The app receives:
 - `AUTH_DATABASE_URL`: the API login (the visitor pool);
 - `DATABASE_VISITOR`: the visitor role name.
 
-The framework checks the contract at startup and in its tests: the API login
+The project checks the contract at startup and in its tests: the API login
 does not inherit, is a member of the visitor role, and has no `BYPASSRLS`; the
 visitor role does not own any object. A host that breaks the contract fails
 the check instead of serving requests without RLS.
