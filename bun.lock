@@ -26,6 +26,14 @@
         "effect": "4.1.1",
       },
     },
+    "packages/delivery": {
+      "name": "@effect-backend/delivery",
+      "dependencies": {
+        "@effect-backend/checker": "workspace:*",
+        "@effect/sql-pg": "4.1.1",
+        "effect": "4.1.1",
+      },
+    },
     "packages/visitor": {
       "name": "@effect-backend/visitor",
       "dependencies": {
@@ -37,6 +45,8 @@
   },
   "packages": {
     "@effect-backend/checker": ["@effect-backend/checker@workspace:packages/checker"],
+
+    "@effect-backend/delivery": ["@effect-backend/delivery@workspace:packages/delivery"],
 
     "@effect-backend/visitor": ["@effect-backend/visitor@workspace:packages/visitor"],
 

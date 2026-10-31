@@ -1,4 +1,4 @@
-import { Effect, Schema } from 'effect'
+import { Config, Effect, Option, Schema } from 'effect'
 import { SqlClient } from 'effect/sql/SqlClient'
 import * as SqlSchema from 'effect/sql/SqlSchema'
 
@@ -18,9 +18,15 @@ export class RoleContract extends Schema.Class<
 	api: Schema.String,
 }) {}
 
+/**
+ * The roles of the connected database. The visitor role's name follows from
+ * the database name unless `DATABASE_VISITOR` names it, for a host whose roles
+ * use other names.
+ */
 export const roleContract = Effect.gen(function* () {
 	const sql = yield* SqlClient
-	return yield* SqlSchema.findOne({
+	const visitor = yield* Config.option(Config.String('DATABASE_VISITOR'))
+	const derived = yield* SqlSchema.findOne({
 		Request: Schema.Void,
 		Result: RoleContract,
 		execute: () => sql`
@@ -28,6 +34,11 @@ export const roleContract = Effect.gen(function* () {
              current_database() || '_visitor' as visitor,
              'alchemy_' || current_database() || '_api' as api`,
 	})(undefined)
+	return new RoleContract({
+		owner: derived.owner,
+		api: derived.api,
+		visitor: Option.getOrElse(visitor, () => derived.visitor),
+	})
 })
 
 /**

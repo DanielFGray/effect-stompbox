@@ -1,5 +1,5 @@
-import { c1, c2, Finding, RoleContract, roleContract } from '@effect-backend/checker'
-import { Config, Context, Effect, Layer, Option, Schema } from 'effect'
+import { c1, c2, Finding, roleContract } from '@effect-backend/checker'
+import { Context, Effect, Layer, Option, Schema } from 'effect'
 import { SqlClient } from 'effect/sql/SqlClient'
 import type { SqlError } from 'effect/sql/SqlError'
 
@@ -78,20 +78,10 @@ export class Visitor extends Context.Service<
 	)
 }
 
-/**
- * Checks the role contract with the API pool and returns the roles requests
- * use. The visitor role's name follows from the database name unless
- * `DATABASE_VISITOR` overrides it; the checks then run on that role.
- */
+/** Checks the role contract with the API pool and returns the roles requests use. */
 const startupCheck = Effect.gen(function* () {
 	const sql = yield* SqlClient
-	const derived = yield* roleContract
-	const visitor = yield* Config.option(Config.String('DATABASE_VISITOR'))
-	const roles = new RoleContract({
-		owner: derived.owner,
-		api: derived.api,
-		visitor: Option.getOrElse(visitor, () => derived.visitor),
-	})
+	const roles = yield* roleContract
 	const [login] = yield* sql`select session_user as name`.pipe(
 		Effect.flatMap(
 			Schema.decodeUnknownEffect(Schema.Tuple([Schema.Struct({ name: Schema.String })])),
