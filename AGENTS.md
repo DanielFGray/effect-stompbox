@@ -22,3 +22,9 @@ Before writing any Effect code, first read `node_modules/effect/AGENTS.md`
 
 If you need to learn more about particular Effect apis and concepts that the
 guide doesn't cover, search through the source code in `node_modules/effect/src`.
+
+# Evidence for Quill
+
+When Effect or TypeScript forces one of the workarounds listed in
+`~/build/quill/doc/design.md#acceptance-test`, add one line to
+`docs/quill-evidence.md`: the file and line, and which workaround.
