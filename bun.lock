@@ -33,13 +33,21 @@
         "@effect/sql-pg": "4.1.1",
         "effect": "4.1.1",
       },
+      "devDependencies": {
+        "@effect-backend/visitor": "workspace:*",
+        "@effect/platform-bun": "4.1.1",
+      },
     },
     "packages/visitor": {
       "name": "@effect-backend/visitor",
       "dependencies": {
         "@effect-backend/checker": "workspace:*",
+        "@effect-backend/delivery": "workspace:*",
         "@effect/sql-pg": "4.1.1",
         "effect": "4.1.1",
+      },
+      "devDependencies": {
+        "@effect/platform-bun": "4.1.1",
       },
     },
   },

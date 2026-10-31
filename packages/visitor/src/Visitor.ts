@@ -1,4 +1,5 @@
 import { c1, c2, Finding, roleContract } from '@effect-backend/checker'
+import { Features, versionsBehind } from '@effect-backend/delivery'
 import { Context, Effect, Layer, Option, Schema } from 'effect'
 import { SqlClient } from 'effect/sql/SqlClient'
 import type { SqlError } from 'effect/sql/SqlError'
@@ -30,7 +31,8 @@ export class NestedVisitorRun extends Schema.TaggedError<
 /**
  * Runs request code as the visitor role. Building the layer checks the role
  * contract (checks C1 and C2, and that the API pool logs in as the API login)
- * and fails with `StartupCheckFailed` when the roles are wrong.
+ * and that no feature in `Features` is behind its latest migration, and fails
+ * with `StartupCheckFailed` otherwise.
  */
 export class Visitor extends Context.Service<
 	Visitor,
@@ -73,6 +75,10 @@ export class Visitor extends Context.Service<
 						}),
 					)
 				})
+			const behind = yield* run(versionsBehind(yield* Features)).pipe(
+				Effect.provideService(RequestSession, Option.none()),
+			)
+			if (behind.length > 0) return yield* new StartupCheckFailed({ findings: behind })
 			return { run }
 		}),
 	)

@@ -1,3 +1,5 @@
+import { Features } from '@effect-backend/delivery'
+import { BunServices } from '@effect/platform-bun'
 import { assert, describe, it, layer } from '@effect/vitest'
 import {
 	Cause,
@@ -23,7 +25,7 @@ import {
 	Visitor,
 } from '../src/index.ts'
 
-// The test database comes from scripts/visitor-test-db.sh. The API pool has
+// The test database comes from scripts/test-db.sh. The API pool has
 // one connection, so consecutive requests always reuse the same one.
 const settings = (overrides: Record<string, string>) =>
 	ConfigProvider.layer(
@@ -40,10 +42,14 @@ const settings = (overrides: Record<string, string>) =>
 		}),
 	)
 
+// These tests deliver no features, so the startup version check has nothing to check.
 const pools = (overrides: Record<string, string> = {}) =>
-	Layer.mergeAll(ApiPool.layer, OwnerPool.layer).pipe(
-		Layer.provideMerge(settings(overrides)),
-	)
+	Layer.mergeAll(
+		ApiPool.layer,
+		OwnerPool.layer,
+		Layer.succeed(Features, []),
+		BunServices.layer,
+	).pipe(Layer.provideMerge(settings(overrides)))
 
 const live = Visitor.layer.pipe(Layer.provideMerge(pools()))
 

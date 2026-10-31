@@ -127,7 +127,7 @@ that impossible: `Visitor.run` is the only provider of the visitor's
 
 Tests run against a database of their own, `effect_backend_dev_visitor`,
 declared in `cartridge.json` so `ops dev db` gives it the real role contract.
-Until the shared cluster runs the current provisioner, `scripts/visitor-test-db.sh`
+Until the shared cluster runs the current provisioner, `scripts/test-db.sh`
 creates it in the local `ops-dev-pg17` container with the same roles.
 Each test creates its own small schema with a table under row-level security
 and a policy on `my.session_id` (the stand-in for `current_user_id()`, which

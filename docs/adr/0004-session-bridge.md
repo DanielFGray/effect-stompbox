@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 ---
 
 # Auth implementations meet row-level security at one session bridge
@@ -15,11 +15,12 @@ each sign-in system as an adapter behind it.
 The bridge has one SQL side and one TypeScript side.
 
 **SQL side.** Policies refer only to these two functions, which every auth
-implementation must provide:
+implementation must provide. They live in the package-owned `auth` schema
+(`docs/delivery/design.md`, rule 7):
 
-- `app_public.current_session_id()` reads the transaction setting
+- `auth.current_session_id()` reads the transaction setting
   `my.session_id`.
-- `app_public.current_user_id()` returns the user of that session, or null
+- `auth.current_user_id()` returns the user of that session, or null
   when the session does not exist, is revoked, or has expired. It checks
   expiry in SQL (security rule 7). It is `SECURITY DEFINER` with a fixed
   `search_path` (security rule 4).
@@ -34,18 +35,18 @@ owns that transaction; the auth implementation provides `RequestSession`.
 
 ## The two implementations
 
-|                          | Starter SQL                         | Yielded Auth                                            |
-| ------------------------ | ----------------------------------- | ------------------------------------------------------- |
-| Sign-in logic            | SQL functions the visitor calls     | TypeScript, Yielded package                             |
-| Writes                   | `SECURITY DEFINER` functions        | Owner pool, through Effect SQL                          |
-| Sessions table           | `app_private.sessions`              | Yielded session role mapped onto `app_private.sessions` |
-| Password hash            | bcrypt in pgcrypto                  | Argon2id or scrypt                                      |
-| `RequestSession`         | cookie `id.secret`, SHA-256 lookup  | `getSession()` from Yielded                             |
-| HTTP contract and client | package `HttpApi` group             | Yielded `AuthContract` and client                       |
-| Apps that use it         | dfg.rocks, setlist, postgres.garden | none                                                    |
+|                          | Starter SQL                         | Yielded Auth                                             |
+| ------------------------ | ----------------------------------- | -------------------------------------------------------- |
+| Sign-in logic            | SQL functions the visitor calls     | TypeScript, Yielded package                              |
+| Writes                   | `SECURITY DEFINER` functions        | Owner pool, through Effect SQL                           |
+| Sessions table           | `auth_private.sessions`             | Yielded session role mapped onto `auth_private.sessions` |
+| Password hash            | bcrypt in pgcrypto                  | Argon2id or scrypt                                       |
+| `RequestSession`         | cookie `id.secret`, SHA-256 lookup  | `getSession()` from Yielded                              |
+| HTTP contract and client | package `HttpApi` group             | Yielded `AuthContract` and client                        |
+| Apps that use it         | dfg.rocks, setlist, postgres.garden | none                                                     |
 
-Both share the users table: Yielded maps its subject onto the app's
-`app_public.users`.
+Both share the users table: Yielded maps its subject onto `auth.users`.
+The starter SQL ships first; Yielded Auth follows under the rule below.
 
 ## Consequences
 

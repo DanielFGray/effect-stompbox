@@ -1,6 +1,6 @@
 # Schema delivery: design
 
-Status: revised after council review (round 1 of 1). No code exists yet.
+Status: accepted after council review (round 1 of 1).
 Step 3 of the plan in `README.md`. The auth package's SQL comes after this
 design and uses it.
 
@@ -163,14 +163,6 @@ cannot read `effect_backend`. A function
 the visitor's declared list of functions (check C3). The startup check calls
 it inside a visitor transaction. The version numbers are not secret.
 
-## Conflict with ADR 0004
-
-ADR 0004 names `app_public.current_user_id()`,
-`app_public.current_session_id()`, `app_private.sessions` and
-`app_public.users`. Rule 7 moves them to `auth` and `auth_private`. If this
-design is accepted, ADR 0004 changes its names; the bridge itself (a
-transaction setting read by SQL functions) does not change.
-
 ## Not in this step
 
 - A development loop like graphile-migrate's `current.sql`, re-run on every
@@ -189,9 +181,9 @@ written against version 1 and never changed.
 
 1. **Upgrade equals fresh install** (the README check). Install version 1 of
    the fixtures and the fixture app, add rows, upgrade to version 3, and take
-   `pg_dump --schema-only`. Recreate the database under the same name (the
-   role names depend on it), install version 3 fresh, dump again. The two
-   dumps are equal.
+   `pg_dump --schema-only`. Drop the fixture schemas and `effect_backend`,
+   install version 3 fresh in the same database (the role names depend on
+   its name), and dump again. The two dumps are equal.
 2. A failing migration in the second of three features leaves all three at
    their old versions.
 3. The runner refuses, before it runs anything: a dependency cycle, a missing

@@ -9,5 +9,9 @@
 		"@effect-backend/checker": "workspace:*",
 		"@effect/sql-pg": "4.1.1",
 		"effect": "4.1.1"
+	},
+	"devDependencies": {
+		"@effect-backend/visitor": "workspace:*",
+		"@effect/platform-bun": "4.1.1"
 	}
 }
