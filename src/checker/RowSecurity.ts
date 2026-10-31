@@ -85,3 +85,33 @@ export const c6 = Effect.fn('c6')(function* (roles: RoleContract) {
 	])
 	return [...errors, ...reviews]
 })
+
+/**
+ * C8: a view runs its query with its owner's rights unless it is created
+ * with `security_invoker`, so row-level security on the tables it reads
+ * applies to the owner, not to the visitor. A materialized view stores its
+ * rows and never applies row-level security. Either one that the visitor can
+ * read shows rows the visitor's policies would hide.
+ */
+export const c8 = Effect.fn('c8')(function* (roles: RoleContract) {
+	const sql = yield* SqlClient
+	const v = roles.visitor
+	return yield* findings({
+		check: 'C8',
+		level: 'error',
+		rule: 'A view the visitor can read runs as the visitor (security_invoker).',
+	})(sql`
+    select format('view %s', c.oid::regclass) as object,
+           case c.relkind
+             when 'm' then 'is a materialized view the visitor can read; it ignores row-level security'
+             else 'the visitor can read it, and it reads its tables as its owner (no security_invoker)'
+           end as problem
+    from pg_class c join pg_namespace n on n.oid = c.relnamespace
+    where c.relkind in ('v', 'm')
+      and ${isAppObject(sql, 'pg_class', 'c.oid', 'n.nspname')}
+      and has_schema_privilege(${v}, n.oid, 'USAGE')
+      and has_any_column_privilege(${v}, c.oid, 'SELECT')
+      and (c.relkind = 'm' or not exists (
+        select 1 from unnest(c.reloptions) o where o ~* '^security_invoker=(true|on|yes|1)$'))
+    order by 1`)
+})

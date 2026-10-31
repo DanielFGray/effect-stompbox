@@ -4,9 +4,10 @@ import { Config, Console, Effect, Layer, Option, Schema } from 'effect'
 import { Argument, Command, Flag } from 'effect/cli'
 
 import { Finding } from './Finding.ts'
+import { c7 } from './Functions.ts'
 import { c3, c4, readSurface, visitorReach, writeSurface } from './Reach.ts'
 import { c1, c2, roleContract } from './Roles.ts'
-import { c5, c6 } from './RowSecurity.ts'
+import { c5, c6, c8 } from './RowSecurity.ts'
 
 class ChecksFailed extends Schema.TaggedError<
 	ChecksFailed,
@@ -30,7 +31,15 @@ const check = Command.make(
 	Effect.fn(function* ({ surface, json }) {
 		const roles = yield* roleContract
 		const [catalog, reachFindings] = yield* Effect.all([
-			Effect.all([c1(roles), c2(roles), c4(roles), c5(roles), c6(roles)]),
+			Effect.all([
+				c1(roles),
+				c2(roles),
+				c4(roles),
+				c5(roles),
+				c6(roles),
+				c7(roles),
+				c8(roles),
+			]),
 			Option.match(surface, {
 				onNone: () =>
 					Console.error('C3 not run: pass --surface <file>').pipe(Effect.as([])),
