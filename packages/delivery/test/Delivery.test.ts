@@ -1,3 +1,4 @@
+import { c3, c4, roleContract, visitorReach } from '@effect-backend/checker'
 import { ApiPool, OwnerPool, StartupCheckFailed, Visitor } from '@effect-backend/visitor'
 import { BunServices } from '@effect/platform-bun'
 import { assert, layer } from '@effect/vitest'
@@ -218,29 +219,37 @@ layer(live, { excludeTestServices: true })('deliver', (it) => {
 	)
 
 	it.effect(
-		'lets the visitor execute only the functions the migrations grant, after an upgrade',
+		'passes C3 and C4 after an upgrade: the visitor reaches only the approved surface',
 		() =>
 			Effect.gen(function* () {
 				yield* reset
 				yield* deliverAsOwner(yield* versions(1, 1, 1))
 				yield* deliverAsOwner(yield* versions(3, 3, 2))
-				const functions = yield* ownerSql(
-					(sql) => sql`
-          select p.oid::regprocedure::text as function,
-                 has_function_privilege(current_database() || '_visitor', p.oid, 'EXECUTE') as visitor,
-                 exists (select 1 from aclexplode(coalesce(p.proacl, acldefault('f', p.proowner))) a
-                         where a.grantee = 0 and a.privilege_type = 'EXECUTE') as public
-          from pg_proc p join pg_namespace n on n.oid = p.pronamespace
-          where n.nspname in ('fx_auth', 'fx_app', 'effect_backend')
-          order by 1`,
+				const findings = yield* ownerSql((sql) =>
+					Effect.gen(function* () {
+						const roles = yield* roleContract
+						const reach = yield* visitorReach(roles)
+						return [...c3(reach, approvedSurface), ...(yield* c4(roles))]
+					}).pipe(Effect.provideService(SqlClient, sql)),
 				)
-				assert.deepStrictEqual(functions, [
-					{ function: 'effect_backend.feature_versions()', visitor: true, public: false },
-					{ function: 'fx_auth.current_user_id()', visitor: true, public: false },
-				])
+				assert.deepStrictEqual(
+					findings.map((f) => `${f.check} ${f.object}: ${f.problem}`),
+					[],
+				)
 			}),
 	)
 })
+
+/** What the fixture features grant the visitor, reviewed by hand. */
+const approvedSurface = [
+	'function effect_backend.feature_versions()',
+	'function fx_auth.current_user_id()',
+	'schema effect_backend',
+	'schema fx_app',
+	'schema fx_auth',
+	'schema public',
+	'table fx_app.posts INSERT,SELECT',
+]
 
 layer(live, { excludeTestServices: true })('startup check', (it) => {
 	const startVisitor = (features: ReadonlyArray<Feature>) =>

@@ -193,8 +193,11 @@ written against version 1 and never changed.
    error, and each migration ran once.
 5. The startup check refuses a database one migration behind the code, and
    accepts it after the upgrade and when it is one migration ahead.
-6. After an upgrade that recreates a function, C3 and C4 pass: the visitor's
-   reach has not grown.
+6. After an upgrade that replaces a function body, C3 and C4 pass: the
+   visitor reaches exactly the approved surface, and no default privilege
+   grants new functions to PUBLIC. (`create or replace` keeps a function's
+   grants; a function in the public SQL API cannot be dropped, because app
+   objects depend on it.)
 7. The splitter and the placeholders: the package's own migration files, and
    hand-written cases for `$$` and tagged bodies, `E'\''` strings, `::`
    casts, nested comments, and a placeholder inside a body (refused).
