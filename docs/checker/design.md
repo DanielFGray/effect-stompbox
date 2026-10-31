@@ -74,18 +74,21 @@ its lint numbers are given where a check matches one.
 | C8  | Every view the visitor can read runs as the caller (`security_invoker`), or is listed as deliberate in the surface file.                                                                                                 | `pg_class.reloptions`                                                                                                                                                                                                                                                           | a view owned by the owner role reads its tables without RLS; splinter 0010 |
 | C9  | A `SECURITY INVOKER` function the visitor can execute reads only tables the visitor can read.                                                                                                                            | for `LANGUAGE sql` bodies: the relations the Postgres parser finds in `prosrc`; PL/pgSQL is out of scope                                                                                                                                                                        | dfg.codes `top_posts()`                                                    |
 
-C9 needs a SQL parser. Two ways are open: `libpg-query` (the Postgres parser
-compiled for JavaScript), or the dependencies Postgres records for SQL
-functions written with `BEGIN ATOMIC` (`pg_depend`). The second needs no
-parser but covers only that style. The design picks one after the corpus shows
-which style the apps use.
+C9 parses `prosrc` with `libpg-query`, the Postgres parser compiled for
+JavaScript. Postgres records dependencies only for SQL functions written with
+`BEGIN ATOMIC`, and the corpus shows that the apps write plain `language sql`
+bodies, so `pg_depend` would miss `top_posts()` (`docs/checker/corpus.md`,
+bug 6).
 
 ## Behaviour probes
 
 These check what a function does, which the catalog cannot show. Each probe
 runs on the admin connection, in one transaction that is rolled back. Inside
 it, `SET LOCAL ROLE` switches to the owner role to prepare rows, then to the
-visitor role (with `my.session_id` set where needed) to call the function. One
+role the app calls the function with: the owner role for functions the API
+calls on the owner pool (`app_private.login`, `app_private.reset_password`),
+the visitor role, with `my.session_id` set, for functions the visitor calls
+(`app_public.change_password`). One
 connection is required: a second connection could not see rows that are not
 committed.
 
@@ -147,7 +150,6 @@ check that flags many correct objects is wrong, not strict.
 
 ## Open questions
 
-- C9: parser or `BEGIN ATOMIC` dependencies (decided from the corpus).
 - Is the visitor surface file one file per app, or one per schema?
 - Does the checker build the scratch databases itself, or rely on each app's
   migration command? The corpus records what each app needs.
