@@ -10,6 +10,8 @@
 		"prepare": "effect-tsgo patch --typescript --oxlint"
 	},
 	"dependencies": {
+		"@effect/platform-bun": "4.1.1",
+		"@effect/sql-pg": "4.1.1",
 		"effect": "4.1.1"
 	},
 	"devDependencies": {

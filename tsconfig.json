@@ -14,7 +14,12 @@
 		"noUncheckedSideEffectImports": true,
 		"moduleDetection": "force",
 		"skipLibCheck": true,
-		"plugins": [{ "name": "@effect/language-service" }]
+		"plugins": [
+			{
+				"name": "@effect/language-service"
+			}
+		],
+		"allowImportingTsExtensions": true
 	},
 	"exclude": ["node_modules"]
 }
