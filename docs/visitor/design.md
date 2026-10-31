@@ -56,7 +56,11 @@ The library does not depend on Kysely; a small adapter module does.
 2. **Startup check.** Building the `ApiPool` layer runs checks C1 and C2 of
    the security checker (`docs/checker/design.md`) and fails if either
    reports an error. A server with a wrong role setup does not start. ADR 0002
-   requires this.
+   requires this. The checks run on the API pool, because an app that signs
+   in through SQL functions needs no owner pool at runtime. The API login can
+   read every catalog the checks use (`pg_roles`, `pg_shdepend`,
+   `pg_default_acl`, `pg_policy`, the ACL columns), and gets the same counts
+   as a superuser on the setlist corpus database.
 3. **`RequestSession`** (ADR 0004). A service with one method that returns
    the current request's session id as an `Option`. The auth implementation
    provides it; the library only reads it.
@@ -89,10 +93,10 @@ that impossible: `Visitor.run` is the only provider of the visitor's
 
 ## How we know it works
 
-Tests against a scratch database on the shared dev cluster, provisioned by
-`ops dev db` with the real role contract (the corpus's `_test` databases
-already exist). Each test creates its own small schema with a table under
-row-level security and a policy on `current_user_id()`.
+Tests run against a database of their own, `effect_backend_visitor`,
+declared in `cartridge.json` so `ops dev db` gives it the real role contract.
+Each test creates its own small schema with a table under row-level security
+and a policy on `current_user_id()`, and drops it after.
 
 1. A query inside `Visitor.run` sees only the rows its session may see.
 2. After `Visitor.run` returns, the same pooled connection runs as the API
@@ -106,6 +110,13 @@ row-level security and a policy on `current_user_id()`.
    visitor role.
 6. A function that raises `CREDS` maps to the caller's tagged error; an
    unmapped error becomes a defect.
+7. Queries run concurrently inside `Visitor.run` (`Effect.all` with
+   concurrency) all run on the transaction's one connection, in order, and
+   all see the visitor's rows.
+8. A fiber forked inside `Visitor.run` that queries after the transaction
+   ends does not run as the visitor: it fails, or it runs on a fresh
+   connection as the API login. Which one happens decides whether `Visitor.run`
+   must forbid such forks; the test records it.
 
 Then the checker passes on the test database, and the effect-web-template's
 `requestDatabase.ts` can be rewritten on the library in a throwaway branch
