@@ -1,6 +1,6 @@
 # Auth package: design
 
-Status: draft, before council review.
+Status: accepted after council review (round 1 of 1).
 Step 3 of the plan in `README.md`, second half. This document covers the
 first increment: the users and sessions tables and the session bridge of
 ADR 0004. Password sign-in, email, and OAuth come later as their own
@@ -46,15 +46,23 @@ Objects:
    avatar) differ in every app, so the app keeps them in its own table with a
    foreign key to `auth.users(id)`. The visitor has no grant on `auth.users`.
 3. `auth_private.sessions (id uuid primary key, user_id uuid references
-   auth.users on delete cascade, secret_hash bytea, created_at, expires_at,
-   absolute_expires_at)`, with row-level security on and no grant to the
-   visitor. `expires_at` never passes `absolute_expires_at` (a check
-   constraint), so one comparison decides whether a session is live.
-4. `auth.current_session_id() returns uuid`: the transaction setting
-   `my.session_id`, or null when it is empty. Not `SECURITY DEFINER`.
-5. `auth.current_user_id() returns uuid`: the user of that session when
-   `expires_at > now()`, otherwise null. `SECURITY DEFINER`, `search_path =
-   pg_catalog, pg_temp` (C7), executable by the visitor and not by PUBLIC.
+   auth.users on delete cascade, secret_hash bytea, created_at, refreshed_at,
+   expires_at, absolute_expires_at)`, every column `not null`, with
+   row-level security on and no grant to the visitor. Check constraints:
+   the hash is 32 bytes, and `created_at <= refreshed_at`, `refreshed_at <
+   expires_at`, `expires_at <= absolute_expires_at`. One comparison,
+   `expires_at > now()`, decides whether a session is live. An index on
+   `user_id` serves `revokeAll` and the cascade from `auth.users`.
+4. `auth.current_session_id() returns uuid`: the session named by the
+   transaction setting `my.session_id` when that session is live, otherwise
+   null. Only the server sets the setting, after `validate`, so a value that
+   is not a uuid is a server bug and the cast raises an error.
+5. `auth.current_user_id() returns uuid`: the user of that live session, or
+   null.
+
+Both functions are `SECURITY DEFINER` with `search_path = pg_catalog,
+pg_temp` (C7), executable by the visitor and not by PUBLIC. Both mean "the
+live session", so a policy gets the same answer from either.
 
 The visitor reaches exactly: usage on `auth`, and execute on the two
 functions. The feature needs no extension: `gen_random_uuid()` and
@@ -68,16 +76,24 @@ server creates the session.
 
 - `create(userId)` makes a secret with Effect's `SecureRandom`, stores its
   SHA-256 hash, and returns the token and its expiry.
-- `validate(token)` parses the token, finds a live session with that id and
-  hash, and moves `expires_at` forward when the last move was at least one
-  refresh interval ago, never past `absolute_expires_at`. It returns the
-  session id, or none. A malformed token, a wrong secret, and an expired or
-  unknown session all give none.
+- `validate(token)` parses the token, then runs one `update ... returning`
+  that matches the id, the hash and `expires_at > now()`. When
+  `refreshed_at` is at least one refresh interval old, it sets `refreshed_at
+  = now()` and `expires_at = greatest(expires_at, least(now() + idle,
+  absolute_expires_at))`, so concurrent requests never move the expiry
+  back. It returns the session id, or none. A malformed token, a wrong
+  secret, and an expired, revoked or unknown session all give none. A
+  revoke that commits first wins; the update then matches no row.
+- `deleteExpired` deletes sessions whose `expires_at` has passed. The app's
+  worker runs it on a schedule.
 - `revoke(sessionId)` deletes one session; `revokeAll(userId)` deletes all
   of a user's sessions.
 
 The three lifetimes (idle 7 days, absolute 30 days, refresh 1 hour) come from
 `Config` with these defaults, so an app changes them without editing SQL.
+`Config` refuses a lifetime that is not positive, and a refresh interval
+that is not shorter than the idle lifetime. A change applies to later
+refreshes; each session keeps the absolute expiry it was created with.
 
 Reading the cookie and providing `RequestSession` for each request belongs to
 the HTTP part of the package, which comes with password sign-in.
@@ -93,6 +109,11 @@ the HTTP part of the package, which comes with password sign-in.
   `my.session_id` is set only by the server after `validate`, so a second id
   adds a column and an index without adding a check.
 - **Revoke deletes the row.** No app keeps revoked sessions.
+- **Sessions run on the owner pool.** The owner login already does runtime
+  work (the worker, ADR 0002), and the template validates sessions on it.
+  The API login cannot hold the functions instead, because C1 forbids it
+  any direct privilege. The visitor cannot hold them either: a visitor that
+  can create a session can sign in as any user.
 - **Expiry is checked in SQL**, in `current_user_id()`, so a policy never
   sees an expired session even if the server sets its id (security rule 7).
 
@@ -111,7 +132,8 @@ On a database built with `scripts/test-db.sh`, fixture app feature included:
 2. The visitor cannot read `auth_private.sessions` or `auth.users`.
 3. `validate`: a wrong secret, a malformed token and an expired session give
    none. A session used after the refresh interval moves `expires_at`, and
-   never past `absolute_expires_at`. Time comes from the database: the test
-   moves a session's times, it does not wait.
+   never past `absolute_expires_at`. Two concurrent validations leave the
+   later expiry. A revoked session validates to none. Time comes from the
+   database: the test moves a session's times, it does not wait.
 4. The checker's C3 against a reviewed surface list, C4, and C5 to C8 pass
    after the feature is installed.
