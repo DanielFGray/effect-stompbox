@@ -16,7 +16,7 @@ The checker has two kinds of check:
   they can run against any database, production included.
 - **Behaviour probes** call functions with prepared rows and look at the
   result. They write data, so they run only against a disposable database,
-  inside a transaction that is rolled back.
+  on one admin connection, inside a transaction that is rolled back.
 
 ## Why the database answers, not a model of it
 
@@ -37,6 +37,11 @@ not give.
 | Visitor role         | `DATABASE_VISITOR`                                  | `giglist_visitor`              |
 | API login            | the user of `AUTH_DATABASE_URL`                     | `alchemy_giglist_api`          |
 | Visitor surface file | committed in the app repo                           | `security/visitor-surface.txt` |
+| Admin connection     | `ROOT_DATABASE_URL`, probes only                    | written by `ops dev db`        |
+
+The platform runs PostgreSQL 17 (`server-ansible/nixos/cynic/postgres-image.nix:4`).
+The checker supports 16 and later, because C1 depends on per-grant
+inheritance, which 16 introduced.
 
 The visitor surface file lists everything the visitor may reach: each table
 or view with its privileges, and each function it may execute, with its full
@@ -46,23 +51,28 @@ change to the visitor's reach as a diff in the pull request, as with a
 lockfile. This replaces a hand-written allowlist, which nobody would keep up
 to date.
 
+Objects that belong to an extension (`pg_depend.deptype = 'e'`) are left out
+of the file and of C3. Each extension appears as one line with its schema and
+version, so an extension upgrade does not fill the diff with function
+signatures.
+
 ## Catalog checks
 
 Each check has an id, the query idea, and the bug or prior art that motivates
 it. Splinter is Supabase's database linter (`github.com/supabase/splinter`);
 its lint numbers are given where a check matches one.
 
-| Id  | Rule                                                                                                                     | How                                                                                                                       | Motivated by                                                               |
-| --- | ------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
-| C1  | The API login does not inherit, is a member of the visitor role, and is not a superuser and has no `BYPASSRLS`.          | `pg_roles`, `pg_auth_members`                                                                                             | ADR 0002                                                                   |
-| C2  | The visitor role is not a superuser, has no `BYPASSRLS`, cannot log in, and owns no object.                              | `pg_roles`, owner columns of `pg_class`, `pg_proc`, `pg_namespace`, `pg_type`                                             | ADR 0002                                                                   |
-| C3  | The visitor's reach equals the visitor surface file.                                                                     | `has_*_privilege(visitor, …)` over every table, view, sequence and function outside `pg_catalog` and `information_schema` | dfg.rocks billing functions executable again after drop and create         |
-| C4  | No default privilege grants `EXECUTE` on new functions to `PUBLIC` or to the visitor.                                    | `pg_default_acl`, and the built-in default that grants `EXECUTE` to `PUBLIC` when no entry revokes it                     | the cause of the dfg.rocks bug                                             |
-| C5  | Every table the visitor has any privilege on has RLS enabled.                                                            | `pg_class.relrowsecurity`                                                                                                 | template rule; splinter 0013 checks the `public` schema only               |
-| C6  | Every table with RLS enabled has at least one policy, and every table with policies has RLS enabled.                     | `pg_policy`, `relrowsecurity`                                                                                             | splinter 0007, 0008                                                        |
-| C7  | Every `SECURITY DEFINER` function sets `search_path`, and no schema on that path is writable by `PUBLIC` or the visitor. | `pg_proc.prosecdef`, `proconfig`, `has_schema_privilege(…, 'CREATE')`                                                     | template star functions; splinter 0011                                     |
-| C8  | Every view the visitor can read runs as the caller (`security_invoker`), or is listed as deliberate in the surface file. | `pg_class.reloptions`                                                                                                     | a view owned by the owner role reads its tables without RLS; splinter 0010 |
-| C9  | A `SECURITY INVOKER` function the visitor can execute reads only tables the visitor can read.                            | for `LANGUAGE sql` bodies: the relations the Postgres parser finds in `prosrc`; PL/pgSQL is out of scope                  | dfg.codes `top_posts()`                                                    |
+| Id  | Rule                                                                                                                                                                                                                     | How                                                                                                                                                                                                                                                                             | Motivated by                                                               |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| C1  | The API login cannot use the visitor's rights without switching role, can switch to the visitor role, is not a superuser and has no `BYPASSRLS`.                                                                         | `pg_has_role(api, visitor, 'USAGE')` is false and `pg_has_role(api, visitor, 'SET')` is true; `pg_roles`. From PostgreSQL 16 inheritance is set per grant (`pg_auth_members.inherit_option`), so `rolinherit` alone is not the answer. These calls also follow chains of roles. | ADR 0002                                                                   |
+| C2  | The visitor role is not a superuser, has no `BYPASSRLS`, cannot log in, and owns no object.                                                                                                                              | `pg_roles`, owner columns of `pg_class`, `pg_proc`, `pg_namespace`, `pg_type`                                                                                                                                                                                                   | ADR 0002                                                                   |
+| C3  | The visitor's reach equals the visitor surface file.                                                                                                                                                                     | `has_*_privilege(visitor, …)` over every table, view, sequence and function outside `pg_catalog`, `information_schema` and extensions                                                                                                                                           | dfg.rocks billing functions executable again after drop and create         |
+| C4  | No default privilege grants `EXECUTE` on new functions to `PUBLIC` or to the visitor.                                                                                                                                    | `pg_default_acl`, and the built-in default that grants `EXECUTE` to `PUBLIC` when no entry revokes it                                                                                                                                                                           | the cause of the dfg.rocks bug                                             |
+| C5  | Every table the visitor has any privilege on has RLS enabled.                                                                                                                                                            | `pg_class.relrowsecurity`                                                                                                                                                                                                                                                       | template rule; splinter 0013 checks the `public` schema only               |
+| C6  | Every table with RLS enabled has at least one policy, and every table with policies has RLS enabled.                                                                                                                     | `pg_policy`, `relrowsecurity`                                                                                                                                                                                                                                                   | splinter 0007, 0008                                                        |
+| C7  | Every `SECURITY DEFINER` function sets `search_path`, and no schema on that path is writable by `PUBLIC` or the visitor. An explicit `pg_temp` as the last entry is correct, as the PostgreSQL documentation recommends. | `pg_proc.prosecdef`, `proconfig`, `has_schema_privilege(…, 'CREATE')`                                                                                                                                                                                                           | template star functions; splinter 0011                                     |
+| C8  | Every view the visitor can read runs as the caller (`security_invoker`), or is listed as deliberate in the surface file.                                                                                                 | `pg_class.reloptions`                                                                                                                                                                                                                                                           | a view owned by the owner role reads its tables without RLS; splinter 0010 |
+| C9  | A `SECURITY INVOKER` function the visitor can execute reads only tables the visitor can read.                                                                                                                            | for `LANGUAGE sql` bodies: the relations the Postgres parser finds in `prosrc`; PL/pgSQL is out of scope                                                                                                                                                                        | dfg.codes `top_posts()`                                                    |
 
 C9 needs a SQL parser. Two ways are open: `libpg-query` (the Postgres parser
 compiled for JavaScript), or the dependencies Postgres records for SQL
@@ -73,19 +83,26 @@ which style the apps use.
 ## Behaviour probes
 
 These check what a function does, which the catalog cannot show. Each probe
-runs in a transaction that is rolled back.
+runs on the admin connection, in one transaction that is rolled back. Inside
+it, `SET LOCAL ROLE` switches to the owner role to prepare rows, then to the
+visitor role (with `my.session_id` set where needed) to call the function. One
+connection is required: a second connection could not see rows that are not
+committed.
 
-| Id  | Rule                                                                                                       | How                                                                                                        | Motivated by                       |
-| --- | ---------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- | ---------------------------------- |
-| P1  | `current_user_id()` returns null for an expired, revoked or unknown session, and the user for a valid one. | insert sessions as the owner, then as the API login set the role and `my.session_id` and call the function | ADR 0004; security rule 7          |
-| P2  | A secret check rejects every input when the stored secret is NULL.                                         | create a user whose stored hash is NULL, call the auth function with any input                             | setlist NULL-secret bug            |
-| P3  | An emailed token stops working after its expiry.                                                           | create a token, move its creation time past the limit, call the function                                   | setlist and dfg.rocks reset tokens |
+| Id  | Rule                                                                                                       | How                                                                                      | Motivated by                       |
+| --- | ---------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- | ---------------------------------- |
+| P1  | `current_user_id()` returns null for an expired, revoked or unknown session, and the user for a valid one. | as the owner, insert sessions; as the visitor, set `my.session_id` and call the function | ADR 0004; security rule 7          |
+| P2  | A secret check rejects every input when the stored secret is NULL.                                         | create a user whose stored hash is NULL, call the auth function with any input           | setlist NULL-secret bug            |
+| P3  | An emailed token stops working after its expiry.                                                           | create a token, move its creation time past the limit, call the function                 | setlist and dfg.rocks reset tokens |
 
 P1 is generic, because ADR 0004 fixes the session bridge for every auth
 implementation. P2 and P3 depend on the auth functions' names and arguments,
 so they belong to the auth implementation. The checker runs them for the
-starter SQL contract (`reset_password`, `login`, `change_password`), which
-three apps share; the auth package (step 3) will own them.
+starter SQL functions (`reset_password`, `login`, `change_password`), which
+three apps share; the auth package (step 3) will own them. These functions
+exist in up to four versions (`docs/matrix/sql-drift.md`), so P2 and P3 read
+each version's signature and token columns from the corpus, not from one
+assumed signature.
 
 ## Output
 
