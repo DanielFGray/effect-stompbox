@@ -33,6 +33,10 @@
 		{
 			"database": "effect_backend_dfg_codes",
 			"extensions": ["citext", "pgcrypto"]
+		},
+		{
+			"database": "effect_backend_visitor",
+			"extensions": []
 		}
 	],
 	"services": [
@@ -73,6 +77,18 @@
 					"database": "effect_backend_dfg_codes",
 					"login": "migration",
 					"urlEnv": "CORPUS_DFG_CODES_URL"
+				},
+				{
+					"_tag": "PostgresCredentials",
+					"database": "effect_backend_visitor",
+					"login": "migration",
+					"urlEnv": "VISITOR_OWNER_URL"
+				},
+				{
+					"_tag": "PostgresCredentials",
+					"database": "effect_backend_visitor",
+					"login": "api",
+					"urlEnv": "VISITOR_API_URL"
 				}
 			]
 		}

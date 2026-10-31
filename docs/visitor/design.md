@@ -9,11 +9,11 @@ A package that runs each request's queries as the visitor role, inside one
 transaction, with the request's session bound for row-level security. Every
 Postgres app in the survey has its own copy of this code:
 
-| App | Where | How it runs queries |
-|---|---|---|
-| effect-web-template | `server/requestDatabase.ts`, `server/db.ts` | Kysely on `pg`, Promise-based, wrapped in a `DbHandle` |
-| setlist | `src/server/db.ts`, `src/server/effect-kysely.ts` (242 lines) | Kysely builders made into Effects, run by `SqlClient` |
-| dfg.rocks | `server/db.ts` (180 lines) | Kysely compiles; `SqlClient` runs the SQL |
+| App                 | Where                                                         | How it runs queries                                    |
+| ------------------- | ------------------------------------------------------------- | ------------------------------------------------------ |
+| effect-web-template | `server/requestDatabase.ts`, `server/db.ts`                   | Kysely on `pg`, Promise-based, wrapped in a `DbHandle` |
+| setlist             | `src/server/db.ts`, `src/server/effect-kysely.ts` (242 lines) | Kysely builders made into Effects, run by `SqlClient`  |
+| dfg.rocks           | `server/db.ts` (180 lines)                                    | Kysely compiles; `SqlClient` runs the SQL              |
 
 All three do the same four things: open a transaction on the API login's
 pool, `set_config('role', <visitor>, true)`, `set_config('my.session_id',
@@ -75,14 +75,18 @@ The library does not depend on Kysely; a small adapter module does.
    a trusted value and is passed to `set_config` as a bound parameter, like
    the session id; neither is ever interpolated into SQL text. Three rules
    bound it:
-   - **No fiber started inside `Visitor.run` outlives it.** The transaction's
-     connection travels in the fiber's context, and a forked fiber copies
-     that context. A fiber that outlives the commit holds a connection the
-     pool has given to the next request, so its queries would run as another
-     visitor with another session. `Visitor.run` interrupts every fiber it
-     started before it commits. Work that must happen after the request uses
-     `SqlClient`'s `afterCommit`, which removes the transaction from the
-     context.
+   - **A fiber that outlives `Visitor.run` cannot query on its
+     connection.** The transaction's connection travels in the fiber's
+     context, and a forked fiber copies that context. If such a fiber could
+     still use the connection after the pool gave it to the next request, its
+     queries would run as another visitor with another session.
+     `@effect/sql-pg` already refuses this: each transaction holds a lease on
+     the connection, and a statement on a released lease fails with a
+     connection error (`PgConnection.ts`, "Pinned connection was released").
+     The library adds no check of its own; the escape tests keep the driver
+     to this, and a different driver must pass the same tests. Work that must
+     happen after the request uses `SqlClient`'s `afterCommit`, which removes
+     the transaction from the context.
    - **`Visitor.run` does not nest.** A nested `withTransaction` is a
      savepoint, and `set_config(..., true)` inside it stays in force for the
      outer transaction, so a nested call with another session would change
@@ -98,6 +102,7 @@ The library does not depend on Kysely; a small adapter module does.
    Limit: SQL that runs as the visitor can run `RESET ROLE` and return to the
    API login. The library runs only SQL the app wrote, so this is safe as
    long as no request can supply SQL text.
+
 5. **Error mapping.** A function that turns `SqlError` into the app's tagged
    errors by SQLSTATE code, for the codes the caller names; every other
    database error becomes a logged defect. The apps raise their own 5-letter
@@ -122,10 +127,13 @@ that impossible: `Visitor.run` is the only provider of the visitor's
 
 ## How we know it works
 
-Tests run against a database of their own, `effect_backend_visitor`,
+Tests run against a database of their own, `effect_backend_dev_visitor`,
 declared in `cartridge.json` so `ops dev db` gives it the real role contract.
+Until the shared cluster runs the current provisioner, `scripts/visitor-test-db.sh`
+creates it in the local `ops-dev-pg17` container with the same roles.
 Each test creates its own small schema with a table under row-level security
-and a policy on `current_user_id()`, and drops it after.
+and a policy on `my.session_id` (the stand-in for `current_user_id()`, which
+step 3 provides), and drops it after.
 
 1. A query inside `Visitor.run` sees only the rows its session may see.
 2. After `Visitor.run` returns, the same pooled connection runs as the API

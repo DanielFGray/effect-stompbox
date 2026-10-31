@@ -1,0 +1,13 @@
+{
+	"name": "@effect-backend/visitor",
+	"private": true,
+	"type": "module",
+	"exports": {
+		".": "./src/index.ts"
+	},
+	"dependencies": {
+		"@effect-backend/checker": "workspace:*",
+		"@effect/sql-pg": "4.1.1",
+		"effect": "4.1.1"
+	}
+}

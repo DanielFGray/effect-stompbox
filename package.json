@@ -1,25 +1,29 @@
 {
 	"name": "effect-backend",
 	"private": true,
+	"workspaces": [
+		"packages/*"
+	],
 	"type": "module",
 	"scripts": {
 		"typecheck": "tsc --noEmit",
 		"lint": "oxlint --type-aware",
 		"fmt": "oxfmt .",
 		"fmt:check": "oxfmt --check .",
-		"prepare": "effect-tsgo patch --typescript --oxlint"
-	},
-	"dependencies": {
-		"@effect/platform-bun": "4.1.1",
-		"@effect/sql-pg": "4.1.1",
-		"effect": "4.1.1"
+		"prepare": "effect-tsgo patch --typescript --oxlint",
+		"test": "bun --bun vitest run"
 	},
 	"devDependencies": {
+		"@effect/platform-bun": "4.1.1",
+		"@effect/sql-pg": "4.1.1",
 		"@effect/tsgo": "0.63.0",
+		"@effect/vitest": "4.1.1",
 		"@types/bun": "^1.4.4",
+		"effect": "4.1.1",
 		"oxfmt": "^0.75.0",
 		"oxlint": "1.90.0",
 		"oxlint-tsgolint": "7.0.2005",
-		"typescript": "7.0.2"
+		"typescript": "7.0.2",
+		"vitest": "^5.0.5"
 	}
 }
