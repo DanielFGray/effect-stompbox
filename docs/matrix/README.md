@@ -20,8 +20,8 @@ the apps.
 - **App-only**: fewer than three apps need it. It stays in the app.
 - **Security rule**: a property the framework would enforce even when no app
   does it yet, because breaking it is a security defect. These come from the
-  bugs this survey found, not from counting apps. This is a proposed second
-  way into the framework besides the rule of three; it needs your approval.
+  bugs this survey found, not from counting apps. The user approved this
+  second way in on 2026-10-31: security rules skip the rule of three.
 - **Below three: decision for you**: fewer than three apps do it, but the
   template has it. Under the rule of three it stays out; you decide whether to
   make an exception.

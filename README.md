@@ -47,7 +47,9 @@ A council review comes before the code of each package.
 ## Rules
 
 - Code goes into a package only where at least three apps already do the
-  same thing (`docs/matrix/`).
+  same thing (`docs/matrix/`). Security rules are the exception: they
+  come from bugs, so a package enforces them even when no app does yet.
+  Features that only the template has still need three apps.
 - Auth, migrations and the worker require Postgres (ADR 0001).
 - A second adapter for a service ships only when an app uses it or Effect
   provides it (ADR 0003).
