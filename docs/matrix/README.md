@@ -17,9 +17,13 @@ the apps.
   differently. The framework defines the interface; the app supplies the part
   that differs.
 - **App-only**: fewer than three apps need it. It stays in the app.
-- **Security rule**: a property the framework enforces even when no app does it
-  yet, because breaking it is a security defect. These come from the bugs this
-  survey found, not from counting apps.
+- **Security rule**: a property the framework would enforce even when no app
+  does it yet, because breaking it is a security defect. These come from the
+  bugs this survey found, not from counting apps. This is a proposed second
+  way into the framework besides the rule of three; it needs your approval.
+- **Below three: decision for you**: fewer than three apps do it, but the
+  template has it. Under the rule of three it stays out; you decide whether to
+  make an exception.
 - **Owner pool / visitor pool**: the owner pool connects as the role that owns
   the schema and bypasses row-level security (RLS). The visitor pool connects
   as the authenticator login and switches to the visitor role for each request
@@ -45,7 +49,7 @@ version of each pattern.
 
 | #   | Concern           | Apps that agree                                                                                                                                                                                                                                  | Template                                | Class                                                                                  |
 | --- | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------- | -------------------------------------------------------------------------------------- |
-| 1   | HTTP API          | `HttpApi` contract: 6 (not twitter-bookmarks). Server host differs: `BunHttpServer` 2, `NodeHttpServer` under Bun 3, a web handler inside `Bun.serve` or TanStack Start 2                                                                        | `HttpApi`, Bun and Node entry points    | Core: `HttpApi`. Extension point: server host                                          |
+| 1   | HTTP API          | `HttpApi` contract: 6 (not twitter-bookmarks). Server host differs: `BunHttpServer` 2, `NodeHttpServer` 3 (two under Bun, knowledgebase on Node), a web handler inside `Bun.serve` or TanStack Start 2                                           | `HttpApi`, Bun and Node entry points    | Core: `HttpApi`. Extension point: server host                                          |
 | 2   | Query layer       | Kysely as query builder: all 5 Postgres apps. Execution differs: Kysely compiles and `@effect/sql` `SqlClient` runs it in 2 (dfg.rocks, setlist, each with its own bridge); `pg` + Kysely runs it in 3. `SqlClient` also serves both SQLite apps | `pg` + Kysely                           | Core: Kysely builder. Open decision: execution path                                    |
 | 3   | Config            | Effect `Config`: 3 (setlist, knowledgebase, twitter-bookmarks). Schema decode of `process.env` at import: 2. Mixed or raw: 2                                                                                                                     | Effect `Config`                         | Core: Effect `Config`                                                                  |
 | 4   | Pools and roles   | Owner + visitor pools with transaction-local role and session: 4. In every app the platform (`ops`, cartridge) creates the roles, not the repo                                                                                                   | same                                    | Core                                                                                   |
@@ -54,15 +58,15 @@ version of each pattern.
 | 7   | Migrations        | graphile-migrate: all 5 Postgres apps. `app_public` / `app_private`: 4. Both SQLite apps run idempotent `CREATE TABLE IF NOT EXISTS` at boot                                                                                                     | graphile-migrate                        | Core. See "Release gap" below                                                          |
 | 8   | Sessions          | Opaque `id.secret` cookie, SHA-256 of the secret stored, 30-day expiry: 4 (dfg.rocks, postgres.garden, dfg.codes, knowledgebase). setlist stores a bare UUID                                                                                     | `id.secret`, hashed                     | Core                                                                                   |
 | 9   | Password auth     | graphile-starter SQL functions, bcrypt in SQL, 3-failure lockout: 3 (dfg.rocks, setlist, postgres.garden). knowledgebase has its own SQL with argon2                                                                                             | Starter functions, reworked             | Core, but the bodies have drifted (see below)                                          |
-| 10  | OAuth             | 4 apps sign in with OAuth: GitHub through `arctic` (postgres.garden), GitHub by hand (dfg.codes), Google and Apple through `arctic` (dfg.rocks). setlist keeps the starter SQL but no code calls it                                              | GitHub through `arctic`, state + PKCE   | Extension point: provider. Core: state + PKCE flow and `link_or_register_user` storage |
-| 11  | Authorization     | RLS keyed on `current_user_id()`: 4. A group concept with an owner flag: 3, under different names (families, bands, organizations). An app role enum: 2                                                                                          | RLS, organizations                      | Core: RLS identity. Extension point: groups                                            |
-| 12  | Rate limits       | Effect `RateLimiter`: 2 (dfg.rocks in memory, setlist on Valkey). SQL attempt table: 1. None: 2                                                                                                                                                  | `RateLimiter`, in memory                | Below three. Kept from the template; Valkey store is a later option                    |
-| 13  | Realtime          | SSE: 3 (dfg.rocks, setlist, knowledgebase uses `pg_notify`). Outbox table + LISTEN wake-up: 1                                                                                                                                                    | SSE, outbox, replay                     | Core: SSE. Outbox from the template                                                    |
+| 10  | OAuth             | 3 apps sign in with OAuth: GitHub through `arctic` (postgres.garden), GitHub by hand (dfg.codes), Google and Apple through `arctic` (dfg.rocks). setlist keeps the starter SQL but no code calls it                                              | GitHub through `arctic`, state + PKCE   | Extension point: provider. Core: state + PKCE flow and `link_or_register_user` storage |
+| 11  | Authorization     | RLS keyed on `current_user_id()`: 4. A group concept with an owner flag: 2 (dfg.rocks families, setlist bands); postgres.garden has an organizations schema that no code uses. An app role enum: 2                                               | RLS, organizations                      | Core: RLS identity. Groups: below three, decision for you                              |
+| 12  | Rate limits       | Effect `RateLimiter`: 2 (dfg.rocks in memory, setlist on Valkey). SQL attempt table: 1. None: 2                                                                                                                                                  | `RateLimiter`, in memory                | Below three: decision for you                                                          |
+| 13  | Realtime          | SSE: 3 (dfg.rocks, setlist, knowledgebase uses `pg_notify`). Outbox table + LISTEN wake-up: 1                                                                                                                                                    | SSE, outbox, replay                     | Core: SSE. Outbox: below three, decision for you                                       |
 | 14  | Worker and mail   | graphile-worker: 4. Starter mail tasks (verify, reset, delete account): 3                                                                                                                                                                        | graphile-worker, Effect `Mailer`        | Core                                                                                   |
 | 15  | Tests             | vitest with `@effect/vitest`: 3. In-process HTTP: 2. A separate test database: 2; 3 test against the dev database                                                                                                                                | In-process HTTP, separate test database | Core: vitest. The template's isolation is the target                                   |
 | 16  | Telemetry         | `Effect.fn` spans: most. `Otlp.layerFromConfig`: 2. OTLP exporter configured in the cartridge but not wired: 1                                                                                                                                   | OTLP + DevTools                         | Core (small)                                                                           |
 | 17  | API contract      | Shared `HttpApi` with `HttpApiClient` in the browser: 6                                                                                                                                                                                          | Shared `HttpApi`                        | Core. The framework stops at the contract                                              |
-| 18  | Deployment        | server-ansible `cartridge.json`: 7. API and worker as two services from one image: 3                                                                                                                                                             | same                                    | Outside the framework, but schema delivery must fit the cartridge `migrate` step       |
+| 18  | Deployment        | server-ansible `cartridge.json`: 6 (not budget). API and worker as two services from one image: 3                                                                                                                                                | same                                    | Outside the framework, but schema delivery must fit the cartridge `migrate` step       |
 | 19  | App features      | Billing, charts, playgrounds, notes, scrapers, budgets                                                                                                                                                                                           | Posts, comments, stars                  | App-only                                                                               |
 
 ## What the evidence says
@@ -78,8 +82,9 @@ SQLite apps.
 
 ### The shared SQL has drifted, and fixes do not spread
 
-Four Postgres apps share 20 auth functions from graphile-starter
-(`sql-drift.md`). Six are identical in every app. `change_password`,
+Three Postgres apps (dfg.rocks, setlist, postgres.garden) and the template
+share 20 auth functions from graphile-starter (`sql-drift.md`). Five are
+identical in all four. `change_password`,
 `reset_password`, `really_create_user` and `link_or_register_user` exist in 3
 to 5 versions. The survey found security bugs that a fix in one copy did not
 reach in the others:
@@ -99,9 +104,10 @@ every app.
 
 ### Release gap
 
-Production in dfg.rocks and setlist migrates only `migrations/committed/`, but
-their code needs `migrations/current/`. knowledgebase and the template have
-nothing in `committed/`. Schema delivery must make "the code needs schema
+Production in dfg.rocks migrates only `migrations/committed/`, but its code
+needs `migrations/current/`. setlist's deploy config has no migrate step at
+all, and its account-takeover fix exists only in `current/`. knowledgebase
+and the template have nothing in `committed/`. Schema delivery must make "the code needs schema
 version N" something a check can see, not a convention.
 
 ### Candidate security rules
