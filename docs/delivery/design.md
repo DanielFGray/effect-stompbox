@@ -1,7 +1,8 @@
 # Schema delivery: design
 
-Status: draft, before council review. Step 3 of the plan in `README.md`. The
-auth package's SQL comes after this design and uses it.
+Status: revised after council review (round 1 of 1). No code exists yet.
+Step 3 of the plan in `README.md`. The auth package's SQL comes after this
+design and uses it.
 
 ## The problem
 
@@ -27,6 +28,8 @@ Terms used below:
   changes.
 - **Feature version**: the number of the last migration of a feature that ran
   in a database.
+- **Public SQL API**: the package functions and tables that the app's SQL may
+  use. The package documents the list.
 
 ## Decisions
 
@@ -39,134 +42,167 @@ tool for the app.
 
 ### 2. Order: features in dependency order, each to its latest version
 
-Feature dependencies form a graph without cycles; the runner refuses a cycle.
-The runner sorts the features so that each comes after the features it
-depends on, then brings each feature to its latest migration before the next
-feature starts.
+Feature dependencies form a graph without cycles; the runner refuses a cycle
+or a missing dependency before it runs anything. The runner sorts the
+features so that each comes after the features it depends on, then brings
+each feature to its latest migration before the next feature starts.
 
-This order is always valid. A feature's migration can only need objects of
-the features it depends on, and those are complete before it starts. A
-feature never needs objects of a feature that depends on it, because that
-would be a cycle. Django needs a graph of single migrations because its apps
-may depend on each other both ways; features here may not.
+A feature never needs objects of a feature that depends on it, because that
+would be a cycle. So each feature's dependencies are complete before it
+starts.
 
-### 3. One transaction for the whole upgrade
+This order has one consequence that the package must accept: on a fresh
+install, an app migration written against version 1 of a feature runs after
+version 3 of that feature. Rule 7 makes this safe.
 
-All pending migrations of all features run in one transaction, on the
-migration login (ADR 0002). If one fails, the database stays at its old
-versions. Postgres DDL is transactional, so this covers tables, functions,
-policies and grants. A migration that cannot run in a transaction
-(`CREATE INDEX CONCURRENTLY`) is not allowed in a feature.
+### 3. One transaction, one lock, as the owner
 
-### 4. Effect's `Migrator`, one table per feature
+All pending migrations of all features run in one transaction. If one fails,
+the database stays at its old versions. Postgres DDL is transactional, so
+this covers tables, functions, policies and grants.
 
-`effect/sql/Migrator` records migrations in a table, locks it, runs the
-pending ones (id greater than the last recorded id) and records them in the
-same transaction. Each feature gets its own table,
-`effect_backend.migrations_<feature>`, so its last id is its feature version.
-The runner calls `Migrator` once per feature, in the order of decision 2,
-inside the transaction of decision 3; the nested transactions become
-savepoints.
+- The transaction first takes `pg_advisory_xact_lock` on a fixed key, so a
+  second runner waits until the first commits, then finds nothing to do.
+- The runner connects as the migration login (ADR 0002) and refuses to run
+  unless `current_user` is the owner role. Objects then belong to the owner,
+  not to a login that may be rotated.
 
-### 5. Migrations are `.sql` files, split by the runner
+### 4. One record table, with a hash of each migration
+
+`effect_backend.migrations` has one row per migration that ran: feature,
+number, name, and the SHA-256 of the SQL text after the role names are
+filled in. Before it runs anything, the runner compares the recorded hashes
+with the files and refuses to run when a released migration has changed.
+This makes "a released migration never changes" a check.
+
+Effect's `Migrator` is not used: it records no hash, keeps one table per
+history, and takes its lock after creating that table, so two first installs
+can collide. What remains of it here (read the last number, run the pending
+files, record them) is a few lines.
+
+### 5. Migrations are `.sql` files in a limited SQL subset
 
 Migrations are SQL files, so that SQL tools can read them (the
 postgres-language-server migration linter, `plpgsql_check`).
 
 `@effect/sql-pg` sends every statement through the extended query protocol,
-which takes one statement at a time. The runner therefore splits each file
-into statements before it runs them. The splitter is a small lexer that knows
-Postgres quoting: `'…'` and `E'…'` strings, `"…"` identifiers, `$tag$…$tag$`
-bodies, and `--` and nested `/* */` comments. Its test corpus is every
-migration file of the surveyed Postgres apps: each file, split and run in
-order, must give the same `pg_dump --schema-only` as `psql -f` of the same
-file.
+which takes one statement at a time; it has no simple-query path
+(`PgConnection.ts`). The runner therefore splits each file into statements
+with a small lexer that knows Postgres quoting: `'…'` and `E'…'` strings,
+`"…"` identifiers, `$tag$…$tag$` bodies, `--` and nested `/* */` comments,
+and `::` casts.
 
-### 6. The package owns its schemas
+The accepted subset is plain SQL statements that can run in a transaction.
+The runner refuses, before it runs anything:
+
+- psql meta-commands (`\set`, `\i`) and `COPY … FROM STDIN`;
+- transaction control (`BEGIN`, `COMMIT`, `ROLLBACK`, `SAVEPOINT`);
+- `CREATE INDEX CONCURRENTLY` and other statements that cannot run in a
+  transaction;
+- `DROP … CASCADE` (rule 7).
+
+### 6. Role names come from the role contract, outside quoted text
+
+SQL cannot take a role name as a bound parameter. A migration writes the
+placeholders `:DATABASE_VISITOR`, `:DATABASE_OWNER` and
+`:DATABASE_AUTHENTICATOR`, as graphile-migrate does. The runner replaces each
+with the quoted identifier from the same `RoleContract` the visitor startup
+check uses: derived from `current_database()`, with the `DATABASE_VISITOR`
+override.
+
+The runner replaces placeholders only outside strings, bodies and comments,
+and refuses a file that has a placeholder inside one. A function body that
+needs a role name gets it from a function, not from the text.
+
+### 7. The package owns its schemas, and its public SQL API only grows
 
 Package features put their objects in schemas that only the package writes,
-as Supabase's auth server owns the `auth` schema. The app never creates
-objects there, and the package never creates objects in the app's schemas
-(`app_public`, `app_private`). This makes two checks possible: every object
-in a package schema comes from a feature migration, and an upgrade touches
-nothing of the app's.
+as Supabase's auth server owns the `auth` schema: `auth` for what the visitor
+may reach, `auth_private` for the rest, `effect_backend` for the records of
+rule 4. The app does not create objects there, with one exception: the app
+may put triggers on `auth` tables, with the trigger function in its own
+schema (for example, to create a profile row when a user is created).
 
-Proposed schemas: `auth` for objects the visitor may reach (tables under RLS,
-the functions the visitor may call) and `auth_private` for the rest. The
-records of decision 4 live in `effect_backend`, which the visitor cannot
-reach.
+Every change to the public SQL API is additive:
 
-### 7. The public SQL API does not change shape
-
-The app's policies and functions call package functions, for example
-`auth.current_user_id()`. A package function that the app may call is part
-of the public SQL API, and the package documents the list.
-
-- A public function keeps its name, arguments and return type forever.
+- A public function keeps its name, arguments, return type and meaning.
   `CREATE OR REPLACE FUNCTION` cannot change a return type, and
   `DROP FUNCTION … CASCADE` would silently drop the app's policies that call
-  it. A new shape gets a new name; the old function stays.
-- A feature migration never uses `DROP … CASCADE`. A test greps for it.
-- Tables in `auth` that the app may read are public in the same way: a column
-  may be added, not removed or retyped.
+  it. A new shape or meaning gets a new name; the old function stays.
+- A public table may get a new column with a default or a null value. It
+  keeps its columns, their types and their constraints.
 
-### 8. Every migration states its grants
+This is what makes rule 2 safe: an app migration that uses only the public
+SQL API of version 1 still works on version 3.
+
+### 8. The package controls the grants on its objects
 
 Default privileges grant rights on new functions, and recreating a function
 creates a new one. So every migration that creates or replaces a function
 also revokes `EXECUTE` from `PUBLIC` and grants it to the roles that need it,
-in the same file. The security checker's C3 and C4 run after an upgrade, not
-only after a fresh install.
+in the same file.
 
-### 9. Role names come from the role contract
+The package's grants are part of each feature. An app that wants less access
+does not revoke package grants, because the next upgrade grants them again;
+it leaves the feature out, or wraps the function in one of its own. The
+security checker's C3 and C4 run after an upgrade, not only after a fresh
+install.
 
-SQL cannot take a role name as a bound parameter. A migration writes the
-placeholders `:DATABASE_VISITOR`, `:DATABASE_OWNER` and
-`:DATABASE_AUTHENTICATOR`, and the runner replaces them with quoted
-identifiers from the role contract, which derives the names from
-`current_database()` as the checker does. graphile-migrate uses the same
-placeholder form, so the apps' existing SQL keeps working.
-
-### 10. The server refuses to start below the version it needs
+### 9. The server refuses to start behind the code
 
 Each feature's code knows the last migration it ships. The visitor startup
 check (`packages/visitor`) also reads the feature versions and fails with
-`StartupCheckFailed` when a database is behind. "The code needs schema
-version N" becomes a check, which closes the release gap.
+`StartupCheckFailed` when the database is behind the code. A database ahead
+of the code is accepted, because during a deploy the old code runs against
+the migrated database. This closes the release gap.
 
 The API login holds no direct privilege on any object (check C1), so it
-cannot read `effect_backend` itself. A function
-`effect_backend.feature_versions()`, `SECURITY DEFINER`, executable by the
-visitor, returns the versions; the startup check calls it inside a visitor
-transaction. The version numbers are not secret.
+cannot read `effect_backend`. A function
+`effect_backend.feature_versions()`, `SECURITY DEFINER` with a fixed
+`search_path`, returns the versions; the visitor may execute it, and it is on
+the visitor's declared list of functions (check C3). The startup check calls
+it inside a visitor transaction. The version numbers are not secret.
+
+## Conflict with ADR 0004
+
+ADR 0004 names `app_public.current_user_id()`,
+`app_public.current_session_id()`, `app_private.sessions` and
+`app_public.users`. Rule 7 moves them to `auth` and `auth_private`. If this
+design is accepted, ADR 0004 changes its names; the bridge itself (a
+transaction setting read by SQL functions) does not change.
 
 ## Not in this step
 
 - A development loop like graphile-migrate's `current.sql`, re-run on every
-  save. Apps write numbered migrations at first; the loop can follow.
+  save. Apps write numbered migrations at first.
 - Down migrations. An upgrade either commits or leaves the old versions.
-- Moving any app onto the runner.
+- Moving any app onto the runner, and running the apps' existing SQL through
+  the splitter.
 - The auth features themselves. They follow this design.
 
 ## How we know it works
 
 Tests run against `effect_backend_dev_delivery`, a database separate from
-the visitor tests, with the same role contract. Each test uses fixture
-features with three versions each, because the auth features do not exist
-yet.
+the visitor tests, with the same role contract. The tests use fixture
+features with three versions each, and a fixture app whose migrations were
+written against version 1 and never changed.
 
-1. **Upgrade equals fresh install** (the README check). Install v1 of the
-   fixtures, upgrade to v3, and take `pg_dump --schema-only`. Recreate the
-   database under the same name (the role names depend on it), install v3
-   fresh, dump again. The two dumps are equal.
+1. **Upgrade equals fresh install** (the README check). Install version 1 of
+   the fixtures and the fixture app, add rows, upgrade to version 3, and take
+   `pg_dump --schema-only`. Recreate the database under the same name (the
+   role names depend on it), install version 3 fresh, dump again. The two
+   dumps are equal.
 2. A failing migration in the second of three features leaves all three at
    their old versions.
-3. The runner refuses a dependency cycle and a missing dependency, before it
-   runs anything.
-4. Two runners started together: one runs, the other waits or fails as
-   `Locked`, and the versions are correct after both.
+3. The runner refuses, before it runs anything: a dependency cycle, a missing
+   dependency, a changed released migration, a connection that is not the
+   owner, and each statement kind of rule 5.
+4. Two runners started together on an empty database: both finish without
+   error, and each migration ran once.
 5. The startup check refuses a database one migration behind the code, and
-   accepts it after the upgrade.
+   accepts it after the upgrade and when it is one migration ahead.
 6. After an upgrade that recreates a function, C3 and C4 pass: the visitor's
    reach has not grown.
-7. The splitter: the corpus test of decision 5.
+7. The splitter and the placeholders: the package's own migration files, and
+   hand-written cases for `$$` and tagged bodies, `E'\''` strings, `::`
+   casts, nested comments, and a placeholder inside a body (refused).
