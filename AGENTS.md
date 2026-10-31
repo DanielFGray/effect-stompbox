@@ -13,6 +13,15 @@
 versions in the "Supported Package Versions" table of
 `node_modules/@effect/tsgo/README.md`. Upgrade them together.
 
+## Test databases
+
+Create each test database with `scripts/test-db.sh <database> <prefix>`. The
+script writes `<prefix>_OWNER_URL` and `<prefix>_API_URL` to `.env`.
+- `scripts/test-db.sh effect_backend_dev_visitor VISITOR`
+- `scripts/test-db.sh effect_backend_dev_delivery DELIVERY`
+
+Run the tests with `bun run test`.
+
 # Learning more about Effect
 
 This repository uses the Effect Typescript library.
