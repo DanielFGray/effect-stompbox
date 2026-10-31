@@ -26,7 +26,7 @@ the apps.
   make an exception.
 - **Owner pool / visitor pool**: the owner pool connects as the role that owns
   the schema and bypasses row-level security (RLS). The visitor pool connects
-  as the authenticator login and switches to the visitor role for each request
+  as the API login and switches to the visitor role for each request
   transaction, so RLS applies.
 
 Counts are out of the seven apps. The template (`effect-web-template`) is a
@@ -125,9 +125,8 @@ From the bugs above, each to become a test (step 2 of the plan):
 
 ## Open decisions
 
-1. **SQLite.** The evidence above favours Postgres-first: no SQLite app has
-   auth. SQLite apps would use only the runtime, config, contract and
-   telemetry pieces.
+1. **SQLite.** Decided: auth, migrations and the worker require Postgres
+   (`docs/adr/0001-postgres-only-auth.md`).
 2. **Query execution.** Two apps already run Kysely-compiled SQL through
    `SqlClient`, each with its own bridge; three run Kysely on `pg`. `SqlClient`
    is the one interface that also serves the SQLite apps, and pg-sourcerer
