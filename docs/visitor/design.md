@@ -59,8 +59,8 @@ builder (ADR 0006).
    would pass with a URL for the migration login. The visitor role name is
    derived from the database name, as the checker does, with an optional
    override for a host whose roles use other names; the check then runs on
-   the role that requests use. The checks run on the API pool, because an app that signs
-   in through SQL functions needs no owner pool at runtime. The API login can
+   the role that requests use. The checks run on the API pool, so the visitor library itself needs no
+   owner pool. The API login can
    read every catalog the checks use (`pg_roles`, `pg_shdepend`,
    `pg_default_acl`, `pg_policy`, the ACL columns), and gets the same counts
    as a superuser on the setlist corpus database.
@@ -168,8 +168,8 @@ step 3 provides), and drops it after.
 
 Then the checker passes on the test database.
 
-The owner pool is optional: an app that signs in through SQL functions runs
-with the API pool only.
+The visitor library does not need the owner pool. The auth package does: its
+`Sessions` service checks each request's session on it (`docs/auth/design.md`).
 
 Row-level security limits what the visitor's queries return at run time.
 It does not stop code from writing a query against a table the visitor

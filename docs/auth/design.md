@@ -118,10 +118,12 @@ the HTTP part of the package, which comes with password sign-in.
 - **Expiry is checked in SQL**, in `current_user_id()`, so a policy never
   sees an expired session even if the server sets its id (security rule 7).
 
-## Open questions for later features
+## Decided for later features
 
-- Where the username lives when password sign-in needs one: in a package
-  table, or in the app's profile table through a function the app provides.
+- **The app owns the username.** It keeps the username in its own profile
+  table and provides the lookup that password sign-in calls, as an adapter
+  in the sense of ADR 0003. The password feature defines that adapter's
+  contract in its own design section.
 
 ## Tests
 

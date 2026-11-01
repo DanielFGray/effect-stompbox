@@ -25,7 +25,7 @@ The names follow server-ansible's convention
 | --------------- | ------------------------ | ----- | -------------------- | ----------------------------------------------------------------------------------------------- |
 | Owner           | `<db>_owner`             | no    |                      | Owns the database and every object in it. Bypasses RLS as owner.                                |
 | Visitor         | `<db>_visitor`           | no    |                      | Holds the grants that app SQL uses. RLS applies.                                                |
-| Migration login | `alchemy_<db>_migration` | yes   | owner, inherits      | Runs migrations and the worker.                                                                 |
+| Migration login | `alchemy_<db>_migration` | yes   | owner, inherits      | Runs migrations, the worker, and session checks (`docs/auth/design.md`).                        |
 | API login       | `alchemy_<db>_api`       | yes   | visitor, `NOINHERIT` | The visitor pool. Has no rights until a transaction runs `set_config('role', <visitor>, true)`. |
 
 The app receives:
