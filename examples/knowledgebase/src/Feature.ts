@@ -1,0 +1,12 @@
+import { auth, passwords } from '@effect-backend/auth'
+import { Feature } from '@effect-backend/delivery'
+
+/** The app's own migrations, delivered after the auth features they use. */
+export const app = new Feature({
+	name: 'app',
+	dependsOn: [auth, passwords],
+	directory: `${import.meta.dirname}/../migrations`,
+})
+
+/** Every feature the server needs, in the order `deliver` and the startup check read them. */
+export const features = [auth, passwords, app]

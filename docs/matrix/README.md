@@ -132,7 +132,7 @@ From the bugs above, each to become a test (step 2 of the plan):
    (`docs/adr/0006-queries-run-through-sqlclient.md`). Two apps already run Kysely-compiled SQL through
    `SqlClient`, each with its own bridge; three run Kysely on `pg`. `SqlClient`
    is the one interface that also serves the SQLite apps, and pg-sourcerer
-   generates `SqlClient` code. Apps write `SqlClient` statements; the framework
-   ships no query builder for now.
+   generates `SqlClient` code. Apps write Kysely, which the framework compiles
+   and runs through `SqlClient` (amended after the knowledgebase port).
 3. **Frontend.** Six apps share an `HttpApi` contract and use five different
    frontend stacks. The framework stops at the contract.

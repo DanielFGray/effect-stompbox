@@ -43,8 +43,8 @@ The library runs every statement through Effect's `SqlClient`
   violation, constraint, permission, unknown) and the driver's original
   error, which holds the SQLSTATE code.
 
-Apps write queries as `SqlClient` statements. The library ships no query
-builder (ADR 0006).
+Apps write queries with Kysely through `VisitorDb` and `OwnerDb`, or as
+`SqlClient` statements (ADR 0006).
 
 ## What the package provides
 

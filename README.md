@@ -38,9 +38,10 @@ Each step ends with a check that does not depend on our own opinion.
    holds. Check: after an upgrade across two versions, `pg_dump --schema-only`
    equals a fresh install.
 4. **Template and reference app.** Config, `HttpApi`, telemetry, the worker and
-   tests, wired with plain Effect. Checks: the reference app passes its tests
-   on Bun and on Node; a throwaway port of dfg.rocks needs no patches to
-   package internals; someone other than the author builds a multi-user app
+   tests, wired with plain Effect. The reference app is knowledgebase
+   (`examples/knowledgebase/`): its server was written first as it should
+   read, and the packages change until it compiles. Checks: the reference app
+   passes its tests on Bun and on Node with no patches to package internals; someone other than the author builds a multi-user app
    from the docs alone.
 
 A council review comes before the code of each package.
