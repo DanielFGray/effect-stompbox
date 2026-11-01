@@ -9,3 +9,13 @@ export const auth = new Feature({
 	dependsOn: [],
 	directory: `${import.meta.dirname}/../migrations`,
 })
+
+/**
+ * The feature `passwords`: Argon2id password hashes in SQL, the failure count
+ * and the lockout. Needs the extension `pgsodium`, which the host creates.
+ */
+export const passwords = new Feature({
+	name: 'passwords',
+	dependsOn: ['auth'],
+	directory: `${import.meta.dirname}/../passwords`,
+})

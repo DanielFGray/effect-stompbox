@@ -121,9 +121,66 @@ the HTTP part of the package, which comes with password sign-in.
 ## Decided for later features
 
 - **The app owns the username.** It keeps the username in its own profile
-  table and provides the lookup that password sign-in calls, as an adapter
-  in the sense of ADR 0003. The password feature defines that adapter's
-  contract in its own design section.
+  table, finds the user id itself, and passes it to password sign-in (see
+  the feature `passwords`).
+
+## The feature `passwords`
+
+Password sign-in follows graphile-starter: SQL hashes, checks and counts
+failed attempts; the server creates the session. It depends on `auth`.
+
+Terms:
+
+- **Lockout**: after 3 failed attempts within 5 minutes, sign-in for that
+  user fails with SQLSTATE `LOCKD` until the window passes.
+
+Objects:
+
+1. `auth_private.passwords (user_id uuid primary key references auth.users
+   on delete cascade, hash bytea not null, failed_attempts int not null,
+   first_failed_at timestamptz, updated_at timestamptz not null)`, with
+   row-level security on and no grant to the visitor. A user with no
+   password has no row, so no code path compares against a null hash.
+2. `auth_private.set_password(user_id uuid, password text) returns void`:
+   stores the Argon2id hash and clears the failure count.
+3. `auth_private.check_password(user_id uuid, password text) returns
+   boolean`: raises `LOCKD` during a lockout; returns false for a wrong
+   password, an unknown user or a user with no password; returns true and
+   clears the failure count for the right one. A wrong password records
+   the failure and returns false instead of raising, so the record commits.
+   An unknown user still costs one hash, so the reply time does not show
+   whether the user exists.
+
+The hash is `pgsodium.crypto_pwhash_str` (Argon2id, libsodium's
+interactive limits), checked with `crypto_pwhash_str_verify`. The functions
+need no pgsodium server key. pgsodium is not a trusted extension, so the
+host provisioner creates it as a superuser (ADR 0002); the runner does not.
+The host also takes `PUBLIC`'s usage on the schema `pgsodium` away and gives
+it to the owner, so the visitor cannot call pgsodium (check C3).
+pgsodium has its own fixed schema `pgsodium`, so the functions name it under
+a fixed `search_path`. The stored value is the 128-byte result as returned,
+NUL padding included, because `crypto_pwhash_str_verify` reads it as a C
+string.
+
+The password reaches Postgres in plaintext. The server always binds it as a
+parameter, never in SQL text, and the host keeps it out of the server log
+(ADR 0002).
+
+The service `Passwords`, on the owner pool:
+
+- `createUser(password)` inserts a user and its password and returns the
+  user id. The caller runs it in its own owner transaction with the app's
+  profile insert, so a failed profile insert leaves no user.
+- `set(userId, password)` sets or replaces a password.
+- `signIn(userId: Option<string>, password)` checks the password and
+  creates a session. It fails with `InvalidCredentials` or `AccountLocked`.
+  The app finds the user id from the name the user typed; none means no
+  such user. The caller must not run it inside a transaction that rolls
+  back on `InvalidCredentials`: the rollback would also remove the failure
+  record, and the lockout would never start.
+
+Password rules (length, breached-password lists) belong to the app's API
+schema; the feature stores any password the app accepts.
 
 ## Tests
 

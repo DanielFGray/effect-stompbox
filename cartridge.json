@@ -44,7 +44,7 @@
 		},
 		{
 			"database": "effect_backend_auth",
-			"extensions": []
+			"extensions": ["pgsodium"]
 		}
 	],
 	"services": [

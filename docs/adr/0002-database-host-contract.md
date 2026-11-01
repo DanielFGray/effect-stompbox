@@ -59,9 +59,18 @@ These are assumptions about managed hosts, not tested:
 
 - Neon, RDS and Supabase let a non-superuser role create roles and grant
   membership as above.
-- Each host offers the extensions the auth SQL needs (`citext`, `pgcrypto`).
-  Apps add others (`pgsodium`, `pg_hashids`, `vector`) that some hosts do not
-  offer.
+- Each host offers the extensions the auth SQL needs. The feature
+  `passwords` needs `pgsodium`, which is not a trusted extension, so the host
+  creates it as a superuser; most managed hosts do not offer it. pgsodium
+  grants usage on its schema to `PUBLIC`, so the host also revokes that and
+  grants usage to the owner role only; otherwise the visitor can call it
+  (check C3). Apps add
+  others (`citext`, `pg_hashids`, `vector`) that some hosts do not offer.
+- The host keeps bound parameters out of the server log at every
+  `log_statement` level: `log_parameter_max_length` and
+  `log_parameter_max_length_on_error` are 0, set where an app login cannot
+  change them (server-ansible sets them on the server's command line).
+  Password sign-in sends the password as a bound parameter.
 - Extensions: server-ansible creates them as a superuser, so that untrusted
   extensions work (`PostgresProvisioning.ts:248`). Managed hosts give no
   superuser, so the provisioner can create only the extensions the host

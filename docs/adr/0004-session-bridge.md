@@ -43,7 +43,7 @@ owns that transaction; the auth implementation provides `RequestSession`.
 | Sign-in logic            | SQL functions the visitor calls     | TypeScript, Yielded package                              |
 | Writes                   | Sessions: owner pool; sign-in: SQL  | Owner pool, through Effect SQL                           |
 | Sessions table           | `auth_private.sessions`             | Yielded session role mapped onto `auth_private.sessions` |
-| Password hash            | bcrypt in pgcrypto                  | Argon2id or scrypt                                       |
+| Password hash            | Argon2id in pgsodium                | Argon2id or scrypt                                       |
 | `RequestSession`         | cookie `id.secret`, SHA-256 lookup  | `getSession()` from Yielded                              |
 | HTTP contract and client | package `HttpApi` group             | Yielded `AuthContract` and client                        |
 | Apps that use it         | dfg.rocks, setlist, postgres.garden | none                                                     |
