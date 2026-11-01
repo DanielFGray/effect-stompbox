@@ -207,6 +207,10 @@ const lockKey = 7_046_253_118
  * the runner: add to them, never change them.
  */
 const bootstrapSql = `
+-- Postgres lets PUBLIC execute every new function unless the creating role's
+-- default privileges say otherwise (check C4). The runner runs as the owner,
+-- so this covers every function a feature creates.
+alter default privileges revoke execute on functions from public;
 create schema if not exists effect_backend;
 revoke all on schema effect_backend from public;
 create table if not exists effect_backend.migrations (
@@ -220,7 +224,7 @@ create table if not exists effect_backend.migrations (
 create or replace function effect_backend.feature_versions()
   returns table (feature text, version integer)
   language sql stable security definer
-  set search_path = pg_catalog
+  set search_path = pg_catalog, pg_temp
 as $$ select feature, max(number) from effect_backend.migrations group by feature $$;
 revoke all on function effect_backend.feature_versions() from public;
 grant usage on schema effect_backend to :DATABASE_VISITOR;

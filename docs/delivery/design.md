@@ -141,7 +141,9 @@ SQL API of version 1 still works on version 3.
 Default privileges grant rights on new functions, and recreating a function
 creates a new one. So every migration that creates or replaces a function
 also revokes `EXECUTE` from `PUBLIC` and grants it to the roles that need it,
-in the same file.
+in the same file. The runner also sets the owner's default privileges so that
+new functions are not executable by `PUBLIC` (check C4), because a host
+provisioner does not always do it.
 
 The package's grants are part of each feature. An app that wants less access
 does not revoke package grants, because the next upgrade grants them again;
