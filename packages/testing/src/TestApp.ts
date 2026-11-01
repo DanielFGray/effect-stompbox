@@ -21,7 +21,7 @@ import * as HttpApiClient from 'effect/http-api/HttpApiClient'
 import type * as HttpApiGroup from 'effect/http-api/HttpApiGroup'
 import type * as Cookies from 'effect/http/Cookies'
 import * as HttpClient from 'effect/http/HttpClient'
-import type * as HttpClientRequest from 'effect/http/HttpClientRequest'
+import * as HttpClientRequest from 'effect/http/HttpClientRequest'
 import type * as HttpClientResponse from 'effect/http/HttpClientResponse'
 import * as HttpEffect from 'effect/http/HttpEffect'
 import * as HttpRouter from 'effect/http/HttpRouter'
@@ -111,12 +111,15 @@ export class TestApp extends Context.Service<
 		return Effect.gen(function* () {
 			const { send } = yield* TestApp
 			const jar = yield* Ref.make<ReadonlyArray<Cookies.Cookie>>([])
-			const transport = HttpClient.make(send).pipe(HttpClient.withCookiesRef(jar))
-			// https, so the jar sends the app's `Secure` cookies back.
-			return yield* HttpApiClient.makeWith(api, {
-				httpClient: transport,
-				baseUrl: 'https://localhost',
-			})
+			// The base URL goes on before the jar: the jar matches cookies against
+			// the request URL, and `makeWith`'s own `baseUrl` is applied after it,
+			// so the jar would see a relative path and send nothing. https, so
+			// the jar sends the app's `Secure` cookies back.
+			const transport = HttpClient.make(send).pipe(
+				HttpClient.mapRequest(HttpClientRequest.prependUrl('https://localhost')),
+				HttpClient.withCookiesRef(jar),
+			)
+			return yield* HttpApiClient.makeWith(api, { httpClient: transport })
 		})
 	}
 }

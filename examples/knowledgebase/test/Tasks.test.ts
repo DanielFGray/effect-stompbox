@@ -10,10 +10,12 @@ import { features } from '../src/Feature.ts'
 // What the visitor may reach once every feature is delivered. Written from a
 // reviewed database; a change to it is a security review (check C3).
 const surface = [
-	'column app_public.tasks completed_at UPDATE',
-	'column app_public.tasks due_date INSERT,UPDATE',
-	'column app_public.tasks status UPDATE',
-	'column app_public.tasks title INSERT,UPDATE',
+	'column app_public.tasks.completed_at UPDATE',
+	'column app_public.tasks.due_date INSERT,UPDATE',
+	'column app_public.tasks.status UPDATE',
+	'column app_public.tasks.title INSERT,UPDATE',
+	// The host creates citext in `public`; its functions only compare text.
+	'extension citext 1.6 in public',
 	'function auth.current_session_id()',
 	'function auth.current_user_id()',
 	'function effect_backend.feature_versions()',
