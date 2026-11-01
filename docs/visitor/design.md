@@ -37,14 +37,19 @@ The library runs every statement through Effect's `SqlClient`
 - **Two pools coexist.** Each `SqlClient` has its own transaction service, so
   the owner pool and the API pool can both be open in one request without
   sharing a transaction.
-- **pg-sourcerer generates `SqlClient` code**, which step 2's typed handles
-  will use.
+- **pg-sourcerer generates the table types** (step 2b) that `visitorDb` and
+  `ownerDb` take, one set per role.
 - **Errors arrive classified.** `SqlError` carries a reason (unique
   violation, constraint, permission, unknown) and the driver's original
   error, which holds the SQLSTATE code.
 
-Apps write queries with Kysely through `VisitorDb` and `OwnerDb`, or as
-`SqlClient` statements (ADR 0006).
+Apps write queries with Kysely through `visitorDb` and `ownerDb`, or as
+`SqlClient` statements (ADR 0006). Each runner method takes the Schema of one
+row; a query whose row type the Schema cannot accept does not compile, and a
+row the Schema rejects at run time is a defect. Request code reaches the
+visitor transaction through `VisitorTransaction`, which only `Visitor.run`
+provides; a nested `withTransaction` on it is a savepoint, so a request can
+recover from one failed statement.
 
 ## What the package provides
 

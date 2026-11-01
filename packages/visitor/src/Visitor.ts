@@ -16,6 +16,17 @@ export class RequestSession extends Context.Service<
 	Option.Option<string>
 >()('@effect-backend/visitor/RequestSession') {}
 
+/**
+ * The request's transaction, as the visitor role. Only `Visitor.run` provides
+ * it, so code that queries as the visitor cannot run outside a request: it
+ * does not compile. Request code queries through `VisitorDb`, or through
+ * `sql` for a statement Kysely cannot build.
+ */
+export class VisitorTransaction extends Context.Service<
+	VisitorTransaction,
+	{ readonly sql: SqlClient }
+>()('@effect-backend/visitor/VisitorTransaction') {}
+
 /** The database's roles do not meet the role contract; the server does not start. */
 export class StartupCheckFailed extends Schema.TaggedError<
 	StartupCheckFailed,
@@ -39,8 +50,9 @@ export class Visitor extends Context.Service<
 	{
 		/**
 		 * Runs `effect` in one transaction on the API pool, as the visitor role,
-		 * with the request's session bound to `my.session_id`. Every query
-		 * `effect` runs through `SqlClient` joins that transaction.
+		 * with the request's session bound to `my.session_id`. `effect` reaches
+		 * that transaction through `VisitorTransaction`, which only this provides.
+		 * A nested `sql.withTransaction` inside it is a savepoint.
 		 *
 		 * Database errors leave it unmapped; pipe the result through
 		 * `mapSqlState`, which then runs after the rollback.
@@ -52,7 +64,7 @@ export class Visitor extends Context.Service<
 		 */
 		readonly run: <A, E, R>(
 			effect: Effect.Effect<A, E, R>,
-		) => Effect.Effect<A, E | SqlError, Exclude<R, SqlClient> | RequestSession>
+		) => Effect.Effect<A, E | SqlError, Exclude<R, VisitorTransaction> | RequestSession>
 	}
 >()('@effect-backend/visitor/Visitor') {
 	static readonly layer = Layer.effect(
@@ -71,13 +83,18 @@ export class Visitor extends Context.Service<
 						Effect.gen(function* () {
 							yield* api`select set_config('role', ${roles.visitor}, true),
 							                  set_config('my.session_id', ${Option.getOrElse(session, () => '')}, true)`
-							return yield* effect.pipe(Effect.provideService(SqlClient, api))
+							return yield* effect.pipe(
+								Effect.provideService(VisitorTransaction, { sql: api }),
+							)
 						}),
 					)
 				})
-			const behind = yield* run(versionsBehind(yield* Features)).pipe(
-				Effect.provideService(RequestSession, Option.none()),
-			)
+			const features = yield* Features
+			const behind = yield* run(
+				Effect.flatMap(VisitorTransaction, ({ sql }) =>
+					versionsBehind(features).pipe(Effect.provideService(SqlClient, sql)),
+				),
+			).pipe(Effect.provideService(RequestSession, Option.none()))
 			if (behind.length > 0) return yield* new StartupCheckFailed({ findings: behind })
 			return { run }
 		}),

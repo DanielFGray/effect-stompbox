@@ -27,9 +27,11 @@ What changes for the app:
 
 Check: `bunx tsc --noEmit -p examples/knowledgebase` lists each missing part.
 
-1. **`VisitorDb` and `OwnerDb`** (`@effect-backend/visitor`): Kysely builders
-   that are Effects and run through the pool's `SqlClient` (ADR 0006). A
-   `VisitorDb` query needs the transaction that only `Visitor.run` provides,
+1. **Done: `visitorDb` and `ownerDb`** (`@effect-backend/visitor`): run
+   Kysely builders through the pool's `SqlClient` and decode each row with a
+   Schema (ADR 0006). The example code still uses an earlier sketch
+   (`VisitorDb.of`); the real form is `db.all(Schema, (k) => ...)`. A `visitorDb`
+   query needs the transaction that only `Visitor.run` provides,
    so one outside a request does not compile. setlist's
    `src/server/effect-kysely.ts` is the prior art.
 2. **Table types per role** (step 2b): `VisitorTables` holds only what the
@@ -54,12 +56,9 @@ Check: `bunx tsc --noEmit -p examples/knowledgebase` lists each missing part.
 
 ## Open questions this slice raises
 
-- **Recovering from a database error inside a request.** `mapSqlState` must
-  run after a rollback, and `SignedInLive` holds one transaction for the
-  whole handler. knowledgebase retries a note title after a unique violation.
-  A nested `withTransaction` is a savepoint in `@effect/sql`, so a service can
-  wrap the one statement and recover; the visitor package must say so and
-  test it.
+- **Recovering from a database error inside a request.** Answered: a
+  nested `withTransaction` on `VisitorTransaction` is a savepoint, and the
+  visitor package tests that a request recovers from one failed statement.
 - **Long requests.** The events stream must not hold a visitor transaction
   open. It stays outside `SignedInLive`, and needs its own session check.
 - **Rate limits.** knowledgebase, setlist and dfg.rocks each limit sign-in

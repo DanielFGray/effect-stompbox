@@ -15,6 +15,7 @@ import {
 	RequestSession,
 	sqlState,
 	Visitor,
+	VisitorTransaction,
 } from '@effect-backend/visitor'
 import { BunServices } from '@effect/platform-bun'
 import { assert, layer } from '@effect/vitest'
@@ -61,6 +62,9 @@ const live = Layer.mergeAll(Visitor.layer, Sessions.layer).pipe(
 	Layer.provideMerge(settings),
 )
 
+/** The visitor transaction's client, inside `Visitor.run`. */
+const visitorSql = Effect.map(Effect.service(VisitorTransaction), (t) => t.sql)
+
 const owner = <A, E>(f: (sql: SqlClient) => Effect.Effect<A, E>) =>
 	Effect.flatMap(Effect.service(OwnerPool), f)
 
@@ -80,7 +84,7 @@ const bridge = (session: Option.Option<string>) =>
 		const rows = yield* visitor
 			.run(
 				Effect.flatMap(
-					Effect.service(SqlClient),
+					visitorSql,
 					(sql) =>
 						sql`select auth.current_user_id() as "user", auth.current_session_id() as session`,
 				),
@@ -165,11 +169,7 @@ layer(live, { excludeTestServices: true })('session bridge', (it) => {
 			const visitor = yield* Visitor
 			const denied = (table: string) =>
 				visitor
-					.run(
-						Effect.flatMap(Effect.service(SqlClient), (sql) =>
-							sql.unsafe(`select 1 from ${table}`),
-						),
-					)
+					.run(Effect.flatMap(visitorSql, (sql) => sql.unsafe(`select 1 from ${table}`)))
 					.pipe(
 						Effect.provideService(RequestSession, Option.none()),
 						Effect.flip,

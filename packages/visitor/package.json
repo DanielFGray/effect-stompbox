@@ -9,7 +9,8 @@
 		"@effect-backend/checker": "workspace:*",
 		"@effect-backend/delivery": "workspace:*",
 		"@effect/sql-pg": "4.1.1",
-		"effect": "4.1.1"
+		"effect": "4.1.1",
+		"kysely": "0.29.4"
 	},
 	"devDependencies": {
 		"@effect/platform-bun": "4.1.1"

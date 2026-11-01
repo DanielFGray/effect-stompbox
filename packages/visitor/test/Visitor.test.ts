@@ -1,6 +1,6 @@
 import { Features } from '@effect-backend/delivery'
 import { BunServices } from '@effect/platform-bun'
-import { assert, describe, it, layer } from '@effect/vitest'
+import { assert, describe, expectTypeOf, it, layer } from '@effect/vitest'
 import {
 	Cause,
 	Config,
@@ -13,17 +13,23 @@ import {
 	Option,
 	Schema,
 } from 'effect'
-import { SqlClient } from 'effect/sql/SqlClient'
+import type { Generated } from 'kysely'
 
 import {
 	ApiPool,
 	mapSqlState,
 	NestedVisitorRun,
+	ownerDb,
 	OwnerPool,
 	RequestSession,
 	StartupCheckFailed,
 	Visitor,
+	visitorDb,
+	VisitorTransaction,
 } from '../src/index.ts'
+
+/** The visitor transaction's client, inside `Visitor.run`. */
+const visitorSql = Effect.map(Effect.service(VisitorTransaction), (t) => t.sql)
 
 // The test database is declared in cartridge.json (`ops dev db up`). The API
 // pool has one connection, so consecutive requests always reuse the same one.
@@ -109,16 +115,17 @@ const fixture = Effect.gen(function* () {
 		owner.unsafe(`drop schema ${name} cascade`).pipe(Effect.orDie),
 	)
 	return {
+		name,
 		insert: (body: string) =>
-			Effect.flatMap(Effect.service(SqlClient), (sql) =>
+			Effect.flatMap(visitorSql, (sql) =>
 				sql.unsafe(`insert into ${name}.notes (body) values ($1)`, [body]),
 			),
-		bodies: Effect.flatMap(Effect.service(SqlClient), (sql) =>
+		bodies: Effect.flatMap(visitorSql, (sql) =>
 			sql
 				.unsafe(`select body from ${name}.notes order by id`)
 				.pipe(Effect.flatMap(Schema.decodeUnknownEffect(Schema.Array(Note)))),
 		).pipe(Effect.map((rows) => rows.map((row) => row.body))),
-		failCreds: Effect.flatMap(Effect.service(SqlClient), (sql) =>
+		failCreds: Effect.flatMap(visitorSql, (sql) =>
 			sql.unsafe(`select ${name}.fail_creds()`),
 		),
 		allBodies: owner.unsafe(`select body from ${name}.notes order by id`).pipe(
@@ -202,9 +209,9 @@ layer(live, { excludeTestServices: true })('Visitor.run', (it) => {
 			const t = yield* fixture
 			const owner = yield* OwnerPool
 			yield* as('a')(
-				Effect.provideService(t.insert('by owner'), SqlClient, owner).pipe(
-					Effect.andThen(Effect.fail(new BadCredentials())),
-				),
+				Effect.provideService(t.insert('by owner'), VisitorTransaction, {
+					sql: owner,
+				}).pipe(Effect.andThen(Effect.fail(new BadCredentials()))),
 			).pipe(Effect.exit)
 			assert.deepStrictEqual(yield* t.allBodies, ['by owner'])
 		}),
@@ -267,7 +274,7 @@ layer(live, { excludeTestServices: true })('Visitor.run', (it) => {
 			const after = yield* Deferred.make<ReadonlyArray<string>>()
 			yield* as('a')(
 				Effect.gen(function* () {
-					const sql = yield* SqlClient
+					const { sql } = yield* VisitorTransaction
 					yield* t.insert('committed')
 					yield* sql.afterCommit(
 						as('a')(t.bodies).pipe(
@@ -313,10 +320,9 @@ layer(live, { excludeTestServices: true })('Visitor.run', (it) => {
 				),
 			)
 			const seen = yield* as('b')(
-				Effect.flatMap(
-					Effect.service(SqlClient),
-					(sql) => sql`select pg_sleep(0.3)`,
-				).pipe(Effect.andThen(t.bodies)),
+				Effect.flatMap(visitorSql, (sql) => sql`select pg_sleep(0.3)`).pipe(
+					Effect.andThen(t.bodies),
+				),
 			)
 			assert.deepStrictEqual(seen, ['b'])
 			yield* Effect.sleep('100 millis')
@@ -380,4 +386,97 @@ describe('Visitor startup check', () => {
 			assert.instanceOf(error, StartupCheckFailed)
 		}),
 	)
+})
+
+/** The fixture's notes table, as Kysely sees it under `withSchema`. */
+interface NoteTables {
+	readonly notes: {
+		readonly id: Generated<number>
+		readonly session_id: Generated<string>
+		readonly body: string
+	}
+}
+
+const visitor = visitorDb<NoteTables>()
+const owner = ownerDb<NoteTables>()
+
+layer(live, { excludeTestServices: true })('visitorDb and ownerDb', (it) => {
+	it.effect('runs Kysely queries in the visitor transaction and decodes the rows', () =>
+		Effect.gen(function* () {
+			const t = yield* fixture
+			const insert = (body: string) =>
+				visitor.one(Note, (k) =>
+					k.withSchema(t.name).insertInto('notes').values({ body }).returning('body'),
+				)
+			assert.deepStrictEqual(yield* as('a')(insert('from a')), { body: 'from a' })
+			yield* as('b')(insert('from b'))
+			const mine = yield* as('a')(
+				visitor.all(Note, (k) => k.withSchema(t.name).selectFrom('notes').select('body')),
+			)
+			assert.deepStrictEqual(mine, [{ body: 'from a' }])
+			const none = yield* as('a')(
+				visitor.maybe(Note, (k) =>
+					k
+						.withSchema(t.name)
+						.selectFrom('notes')
+						.select('body')
+						.where('body', '=', 'from b'),
+				),
+			)
+			assert.deepStrictEqual(none, Option.none())
+		}),
+	)
+
+	it.effect('recovers from an error inside a request with a nested transaction', () =>
+		Effect.gen(function* () {
+			const t = yield* fixture
+			const bodies = yield* as('a')(
+				Effect.gen(function* () {
+					const { sql } = yield* VisitorTransaction
+					yield* t.insert('before')
+					// The nested transaction is a savepoint: its failure rolls back only
+					// the savepoint, so the request goes on and commits.
+					const refused = yield* sql
+						.withTransaction(t.insert('in savepoint').pipe(Effect.andThen(t.failCreds)))
+						.pipe(mapSqlState({ CREDS: () => new BadCredentials() }), Effect.flip)
+					assert.instanceOf(refused, BadCredentials)
+					yield* t.insert('after')
+					return yield* t.bodies
+				}),
+			)
+			assert.deepStrictEqual(bodies, ['before', 'after'])
+			assert.deepStrictEqual(yield* t.allBodies, ['before', 'after'])
+		}),
+	)
+
+	it.effect('rolls back every owner query in withTransaction together', () =>
+		Effect.gen(function* () {
+			const t = yield* fixture
+			const insert = (body: string) =>
+				owner.one(Note, (k) =>
+					k.withSchema(t.name).insertInto('notes').values({ body }).returning('body'),
+				)
+			const exit = yield* owner
+				.withTransaction(
+					insert('first').pipe(
+						Effect.andThen(insert('second')),
+						Effect.andThen(Effect.fail(new BadCredentials())),
+					),
+				)
+				.pipe(Effect.exit)
+			assert.isTrue(Exit.isFailure(exit))
+			assert.deepStrictEqual(yield* t.allBodies, [])
+		}),
+	)
+
+	it('refuses at compile time a visitor query outside a request, and a Schema that does not fit', () => {
+		const query = visitor.all(Note, (k) => k.selectFrom('notes').select('body'))
+		// It needs VisitorTransaction, which only Visitor.run provides.
+		expectTypeOf<Effect.Services<typeof query>>().toEqualTypeOf<VisitorTransaction>()
+		const wrong = visitor.all(Schema.Struct({ id: Schema.String }), (k) =>
+			// @ts-expect-error: the row's `id` is a number, the Schema expects a string
+			k.selectFrom('notes').select('id'),
+		)
+		assert.isDefined(wrong)
+	})
 })

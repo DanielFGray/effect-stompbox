@@ -7,7 +7,7 @@ status: accepted
 Every query the framework runs goes through Effect's `SqlClient`
 (`effect/sql`, driver `@effect/sql-pg`). Apps write queries with Kysely: the
 framework compiles each Kysely builder and runs the SQL through `SqlClient`
-(`VisitorDb` and `OwnerDb`). A plain `SqlClient` statement also works.
+(`visitorDb` and `ownerDb`). A plain `SqlClient` statement also works.
 
 The visitor role and the session are transaction-local settings, so every
 query of a request must run on the transaction's connection. `SqlClient`
