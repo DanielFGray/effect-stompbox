@@ -18,12 +18,15 @@ The bridge has one SQL side and one TypeScript side.
 implementation must provide. They live in the package-owned `auth` schema
 (`docs/delivery/design.md`, rule 7):
 
-- `auth.current_session_id()` reads the transaction setting
-  `my.session_id`.
-- `auth.current_user_id()` returns the user of that session, or null
-  when the session does not exist, is revoked, or has expired. It checks
-  expiry in SQL (security rule 7). It is `SECURITY DEFINER` with a fixed
-  `search_path` (security rule 4).
+- `auth.current_session_id()` returns the session named by the transaction
+  setting `my.session_id`, or null when that session does not exist, is
+  revoked, or has expired.
+- `auth.current_user_id()` returns the user of that session, or null in the
+  same cases.
+
+Both check expiry in SQL (security rule 7), so both mean "the live
+session". Both are `SECURITY DEFINER` with a fixed `search_path` (security
+rule 4).
 
 The template's `current_user_id()` does not check expiry yet
 (`effect-web-template/migrations/current/0110-sessions.sql:69-71`).
@@ -38,7 +41,7 @@ owns that transaction; the auth implementation provides `RequestSession`.
 |                          | Starter SQL                         | Yielded Auth                                             |
 | ------------------------ | ----------------------------------- | -------------------------------------------------------- |
 | Sign-in logic            | SQL functions the visitor calls     | TypeScript, Yielded package                              |
-| Writes                   | `SECURITY DEFINER` functions        | Owner pool, through Effect SQL                           |
+| Writes                   | Sessions: owner pool; sign-in: SQL  | Owner pool, through Effect SQL                           |
 | Sessions table           | `auth_private.sessions`             | Yielded session role mapped onto `auth_private.sessions` |
 | Password hash            | bcrypt in pgcrypto                  | Argon2id or scrypt                                       |
 | `RequestSession`         | cookie `id.secret`, SHA-256 lookup  | `getSession()` from Yielded                              |
