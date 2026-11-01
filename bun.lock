@@ -26,8 +26,10 @@
         "@effect-backend/visitor": "workspace:*",
         "@effect/platform-bun": "4.1.1",
         "effect": "4.1.1",
+        "kysely": "0.29.4",
       },
       "devDependencies": {
+        "@effect-backend/testing": "workspace:*",
         "@effect/vitest": "4.1.1",
       },
     },
@@ -64,6 +66,16 @@
         "@effect/platform-bun": "4.1.1",
       },
     },
+    "packages/testing": {
+      "name": "@effect-backend/testing",
+      "dependencies": {
+        "@effect-backend/checker": "workspace:*",
+        "@effect-backend/delivery": "workspace:*",
+        "@effect-backend/visitor": "workspace:*",
+        "@effect/platform-bun": "4.1.1",
+        "effect": "4.1.1",
+      },
+    },
     "packages/visitor": {
       "name": "@effect-backend/visitor",
       "dependencies": {
@@ -86,6 +98,8 @@
     "@effect-backend/delivery": ["@effect-backend/delivery@workspace:packages/delivery"],
 
     "@effect-backend/example-knowledgebase": ["@effect-backend/example-knowledgebase@workspace:examples/knowledgebase"],
+
+    "@effect-backend/testing": ["@effect-backend/testing@workspace:packages/testing"],
 
     "@effect-backend/visitor": ["@effect-backend/visitor@workspace:packages/visitor"],
 

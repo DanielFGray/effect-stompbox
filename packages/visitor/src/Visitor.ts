@@ -19,8 +19,13 @@ export class RequestSession extends Context.Service<
 /**
  * The request's transaction, as the visitor role. Only `Visitor.run` provides
  * it, so code that queries as the visitor cannot run outside a request: it
- * does not compile. Request code queries through `VisitorDb`, or through
+ * does not compile. Request code queries through `visitorDb`, or through
  * `sql` for a statement Kysely cannot build.
+ *
+ * A service method that queries as the visitor requires it from its caller,
+ * the way a handler requires the request: it exists only per request.
+ *
+ * @effect-leakable-service
  */
 export class VisitorTransaction extends Context.Service<
 	VisitorTransaction,

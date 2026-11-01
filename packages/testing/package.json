@@ -1,0 +1,15 @@
+{
+	"name": "@effect-backend/testing",
+	"private": true,
+	"type": "module",
+	"exports": {
+		".": "./src/index.ts"
+	},
+	"dependencies": {
+		"@effect-backend/checker": "workspace:*",
+		"@effect-backend/delivery": "workspace:*",
+		"@effect-backend/visitor": "workspace:*",
+		"@effect/platform-bun": "4.1.1",
+		"effect": "4.1.1"
+	}
+}

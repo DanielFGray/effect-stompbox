@@ -4,7 +4,7 @@ import { Feature } from '@effect-backend/delivery'
 /** The app's own migrations, delivered after the auth features they use. */
 export const app = new Feature({
 	name: 'app',
-	dependsOn: [auth, passwords],
+	dependsOn: [auth.name, passwords.name],
 	directory: `${import.meta.dirname}/../migrations`,
 })
 

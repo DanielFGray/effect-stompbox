@@ -1,8 +1,8 @@
 // The contract the browser and the server share. It imports only the
 // client-safe part of the auth package.
-// InvalidCredentials comes from the auth package, so every app answers a
-// failed sign-in the same way.
-import { InvalidCredentials, SignedIn } from '@effect-backend/auth/api'
+// InvalidCredentials and AccountLocked come from the auth package, so every
+// app answers a failed sign-in the same way.
+import { AccountLocked, InvalidCredentials, SignedIn } from '@effect-backend/auth/api'
 import { Schema } from 'effect'
 import * as HttpApi from 'effect/http-api/HttpApi'
 import * as HttpApiEndpoint from 'effect/http-api/HttpApiEndpoint'
@@ -27,17 +27,15 @@ const Credentials = Schema.Struct({
 	password: Schema.String.check(Schema.isMinLength(8)),
 })
 
-export class UsernameTaken extends Schema.TaggedError<UsernameTaken>()(
-	'UsernameTaken',
-	{},
-	{ httpApiStatus: 409 },
-) {}
+export class UsernameTaken extends Schema.TaggedError<
+	UsernameTaken,
+	{ readonly brand: unique symbol }
+>()('UsernameTaken', {}, { httpApiStatus: 409 }) {}
 
-export class TaskNotFound extends Schema.TaggedError<TaskNotFound>()(
-	'TaskNotFound',
-	{ taskId: Schema.String },
-	{ httpApiStatus: 404 },
-) {}
+export class TaskNotFound extends Schema.TaggedError<
+	TaskNotFound,
+	{ readonly brand: unique symbol }
+>()('TaskNotFound', { taskId: Schema.String }, { httpApiStatus: 404 }) {}
 
 const Public = HttpApiGroup.make('public')
 	.add(
@@ -51,7 +49,7 @@ const Public = HttpApiGroup.make('public')
 		HttpApiEndpoint.post('signIn', '/sign-in', {
 			payload: Credentials,
 			success: Account,
-			error: InvalidCredentials,
+			error: [InvalidCredentials, AccountLocked],
 		}),
 	)
 

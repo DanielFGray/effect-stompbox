@@ -45,6 +45,10 @@
 		{
 			"database": "effect_backend_auth",
 			"extensions": ["pgsodium"]
+		},
+		{
+			"database": "effect_backend_knowledgebase_test",
+			"extensions": ["citext", "pgsodium"]
 		}
 	],
 	"services": [
@@ -121,6 +125,18 @@
 					"database": "effect_backend_auth",
 					"login": "api",
 					"urlEnv": "AUTH_API_URL"
+				},
+				{
+					"_tag": "PostgresCredentials",
+					"database": "effect_backend_knowledgebase_test",
+					"login": "migration",
+					"urlEnv": "KNOWLEDGEBASE_DATABASE_URL"
+				},
+				{
+					"_tag": "PostgresCredentials",
+					"database": "effect_backend_knowledgebase_test",
+					"login": "api",
+					"urlEnv": "KNOWLEDGEBASE_AUTH_DATABASE_URL"
 				}
 			]
 		}
