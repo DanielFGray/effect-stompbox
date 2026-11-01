@@ -218,7 +218,9 @@ The cookie:
 - Its name has one source: the security scheme on `SignedIn`.
 - `__Host-` makes the browser refuse it unless it is `Secure`, has `Path=/`
   and no `Domain`, so a sibling subdomain cannot set it. The app is served
-  over HTTPS, or on `localhost`, which browsers treat as secure.
+  over HTTPS. Chrome and Firefox also accept a `Secure` cookie from
+  `http://localhost`; for local development in another browser, serve
+  HTTPS.
 - `HttpOnly`, so page scripts cannot read the token; `SameSite=Lax`, so a
   cross-site form post does not carry it.
 - It expires at the session's absolute expiry. `validate` never moves the

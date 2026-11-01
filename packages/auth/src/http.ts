@@ -3,6 +3,7 @@ import { RequestSession, Visitor } from '@effect-backend/visitor'
 import { Effect, Layer, Option, Redacted } from 'effect'
 import * as HttpApiBuilder from 'effect/http-api/HttpApiBuilder'
 import * as HttpApiError from 'effect/http-api/HttpApiError'
+import type * as Cookies from 'effect/http/Cookies'
 import * as HttpEffect from 'effect/http/HttpEffect'
 import * as HttpServerResponse from 'effect/http/HttpServerResponse'
 import { isSqlError } from 'effect/sql/SqlError'
@@ -23,15 +24,17 @@ export const SignedInLive = Layer.effect(
 		const visitor = yield* Visitor
 		return SignedIn.of({
 			session: (httpEffect, { credential }) =>
-				Effect.gen(function* () {
-					const session = yield* sessions.validate(Redacted.value(credential))
-					if (Option.isNone(session)) return yield* new HttpApiError.Unauthorized({})
-					return yield* visitor
-						.run(httpEffect.pipe(Effect.provideService(CurrentSession, session.value)))
-						.pipe(
-							Effect.provideService(RequestSession, Option.some(session.value.sessionId)),
-						)
-				}).pipe(
+				sessions.validate(Redacted.value(credential)).pipe(
+					Effect.flatMap((found) =>
+						Effect.fromOption(found, () => new HttpApiError.Unauthorized({})),
+					),
+					Effect.flatMap((session) =>
+						visitor
+							.run(httpEffect.pipe(Effect.provideService(CurrentSession, session)))
+							.pipe(
+								Effect.provideService(RequestSession, Option.some(session.sessionId)),
+							),
+					),
 					// Only a database error at validate, begin or commit is a defect.
 					// The handler's own errors pass through untouched: the API builder
 					// turns them into responses after this middleware returns.
@@ -74,4 +77,4 @@ const attributes = {
 	secure: true,
 	httpOnly: true,
 	sameSite: 'lax',
-} as const
+} satisfies NonNullable<Cookies.Cookie['options']>

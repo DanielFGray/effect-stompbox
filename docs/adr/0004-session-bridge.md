@@ -40,12 +40,12 @@ owns that transaction; the auth implementation provides `RequestSession`.
 
 |                          | Starter SQL                         | Yielded Auth                                             |
 | ------------------------ | ----------------------------------- | -------------------------------------------------------- |
-| Sign-in logic            | SQL functions the visitor calls     | TypeScript, Yielded package                              |
+| Sign-in logic            | SQL functions the server calls      | TypeScript, Yielded package                              |
 | Writes                   | Sessions: owner pool; sign-in: SQL  | Owner pool, through Effect SQL                           |
 | Sessions table           | `auth_private.sessions`             | Yielded session role mapped onto `auth_private.sessions` |
 | Password hash            | Argon2id in pgsodium                | Argon2id or scrypt                                       |
 | `RequestSession`         | cookie `id.secret`, SHA-256 lookup  | `getSession()` from Yielded                              |
-| HTTP contract and client | package `HttpApi` group             | Yielded `AuthContract` and client                        |
+| HTTP contract and client | `SignedIn`, `SessionCookie`         | Yielded `AuthContract` and client                        |
 | Apps that use it         | dfg.rocks, setlist, postgres.garden | none                                                     |
 
 Both share the users table: Yielded maps its subject onto `auth.users`.
