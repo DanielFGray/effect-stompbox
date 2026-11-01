@@ -20,6 +20,7 @@ script writes `<prefix>_OWNER_URL` and `<prefix>_API_URL` to `.env`.
 
 - `scripts/test-db.sh effect_backend_dev_visitor VISITOR`
 - `scripts/test-db.sh effect_backend_dev_delivery DELIVERY`
+- `scripts/test-db.sh effect_backend_dev_auth AUTH`
 
 Run the tests with `bun run test`.
 

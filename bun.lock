@@ -18,6 +18,19 @@
         "vitest": "^5.0.5",
       },
     },
+    "packages/auth": {
+      "name": "@effect-backend/auth",
+      "dependencies": {
+        "@effect-backend/delivery": "workspace:*",
+        "@effect-backend/visitor": "workspace:*",
+        "@effect/sql-pg": "4.1.1",
+        "effect": "4.1.1",
+      },
+      "devDependencies": {
+        "@effect-backend/checker": "workspace:*",
+        "@effect/platform-bun": "4.1.1",
+      },
+    },
     "packages/checker": {
       "name": "@effect-backend/checker",
       "dependencies": {
@@ -52,6 +65,8 @@
     },
   },
   "packages": {
+    "@effect-backend/auth": ["@effect-backend/auth@workspace:packages/auth"],
+
     "@effect-backend/checker": ["@effect-backend/checker@workspace:packages/checker"],
 
     "@effect-backend/delivery": ["@effect-backend/delivery@workspace:packages/delivery"],

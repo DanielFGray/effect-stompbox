@@ -1,6 +1,7 @@
 # Auth package: design
 
-Status: accepted after council review (round 1 of 1).
+Status: accepted after council review (round 1 of 1); the sessions increment is built
+(`packages/auth`).
 Step 3 of the plan in `README.md`, second half. This document covers the
 first increment: the users and sessions tables and the session bridge of
 ADR 0004. Password sign-in, email, and OAuth come later as their own

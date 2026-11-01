@@ -6,6 +6,7 @@
 # <prefix>_OWNER_URL and <prefix>_API_URL. The tests use:
 #   scripts/test-db.sh effect_backend_dev_visitor VISITOR
 #   scripts/test-db.sh effect_backend_dev_delivery DELIVERY
+#   scripts/test-db.sh effect_backend_dev_auth AUTH
 #
 # The shared-cluster provisioner (`ops dev db up`) does the same once the
 # server runs the current server-ansible; until then this script stands in for
