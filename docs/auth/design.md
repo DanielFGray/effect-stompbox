@@ -76,13 +76,14 @@ template already works this way: its SQL `login` returns a user and the
 server creates the session.
 
 - `create(userId)` makes a secret with Effect's `SecureRandom`, stores its
-  SHA-256 hash, and returns the token and its expiry.
+  SHA-256 hash, and returns the token, its idle expiry and its absolute
+  expiry.
 - `validate(token)` parses the token, then runs one `update ... returning`
   that matches the id, the hash and `expires_at > now()`. When
   `refreshed_at` is at least one refresh interval old, it sets `refreshed_at
   = now()` and `expires_at = greatest(expires_at, least(now() + idle,
   absolute_expires_at))`, so concurrent requests never move the expiry
-  back. It returns the session id, or none. A malformed token, a wrong
+  back. It returns the session id and its user id, or none. A malformed token, a wrong
   secret, and an expired, revoked or unknown session all give none. A
   revoke that commits first wins; the update then matches no row.
 - `deleteExpired` deletes sessions whose `expires_at` has passed. The app's
@@ -97,7 +98,7 @@ that is not shorter than the idle lifetime. A change applies to later
 refreshes; each session keeps the absolute expiry it was created with.
 
 Reading the cookie and providing `RequestSession` for each request belongs to
-the HTTP part of the package, which comes with password sign-in.
+the HTTP part of the package (below).
 
 ## Choices made
 
@@ -182,6 +183,53 @@ The service `Passwords`, on the owner pool:
 Password rules (length, breached-password lists) belong to the app's API
 schema; the feature stores any password the app accepts.
 
+`AccountLocked` is a separate error, as in graphile-starter, so a caller
+learns that a name exists after 3 failed attempts: an unknown user never
+locks. The app can answer both errors the same way if that matters to it.
+
+## The HTTP part
+
+Two entry points, so a browser bundle never imports server code:
+
+1. **`@effect-backend/auth/api`** imports only `effect` (and types from the
+   visitor package). It holds what the browser and the server share:
+   - `SignedIn`, an `HttpApiMiddleware` with the security scheme "API key in
+     the cookie `__Host-session`". It provides `CurrentSession` and
+     `VisitorTransaction` to the endpoints it guards, and fails with
+     `Unauthorized` (401) when the request has no live session.
+   - `CurrentSession`: the request's `{ sessionId, userId }`.
+   - `InvalidCredentials` (401) and `AccountLocked` (429).
+2. **`@effect-backend/auth/http`**, server only:
+   - `SignedInLive`, the layer that implements `SignedIn` with `Sessions`
+     and `Visitor`.
+   - `SessionCookie.set(session)` and `SessionCookie.clear`, for the
+     handlers that sign in and sign out.
+
+`SignedInLive` validates the cookie's token, then runs the endpoint in one
+`Visitor.run`, with `RequestSession` set to the session id. The endpoint's
+payload decoding, handler and response encoding are all inside that one
+transaction, so a typed error from the handler rolls the transaction back
+and still reaches the client with its own status. A database error at
+begin or commit is a defect (500). A streaming response body is read after
+the transaction ends, so a streaming endpoint must not use `SignedIn`.
+
+The cookie:
+
+- Its name has one source: the security scheme on `SignedIn`.
+- `__Host-` makes the browser refuse it unless it is `Secure`, has `Path=/`
+  and no `Domain`, so a sibling subdomain cannot set it. The app is served
+  over HTTPS, or on `localhost`, which browsers treat as secure.
+- `HttpOnly`, so page scripts cannot read the token; `SameSite=Lax`, so a
+  cross-site form post does not carry it.
+- It expires at the session's absolute expiry. `validate` never moves the
+  absolute expiry, so no request needs to set the cookie again; an idle
+  session that ended leaves a cookie that validates to none.
+- `clear` sends the same name, `Path` and `Secure` with an expiry in the
+  past, or the browser keeps the old cookie.
+
+A sign-in always creates a new session and sets the cookie; it never reuses
+the session the browser sent.
+
 ## Tests
 
 On the database `effect_backend_auth`, declared in `cartridge.json`:
@@ -197,3 +245,8 @@ On the database `effect_backend_auth`, declared in `cartridge.json`:
    database: the test moves a session's times, it does not wait.
 4. The checker's C3 against a reviewed surface list, C4, and C5 to C8 pass
    after the feature is installed.
+5. Through the HTTP entry points, in process: sign-in sets the cookie with
+   the attributes above and the absolute expiry; a missing, malformed,
+   wrong or revoked session gives 401; a private handler sees its own user
+   in `auth.current_user_id()`; a typed handler error keeps its status;
+   sign-out revokes the session and clears the cookie.

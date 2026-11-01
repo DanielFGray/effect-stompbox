@@ -4,11 +4,18 @@ import * as Digest from 'effect/crypto/Digest'
 import * as SecureRandom from 'effect/crypto/SecureRandom'
 import * as Hex from 'effect/encoding/Hex'
 
-/** A new session: the token for the browser, and when the session ends unless used. */
+import type { LiveSession } from './api.ts'
+import { decodeRows } from './Rows.ts'
+
+/**
+ * A new session: the token for the browser, when the session ends unless used
+ * (`expiresAt`), and when it ends even if used (`absoluteExpiresAt`).
+ */
 export interface CreatedSession {
 	readonly sessionId: string
 	readonly token: string
 	readonly expiresAt: Date
+	readonly absoluteExpiresAt: Date
 }
 
 /**
@@ -38,26 +45,27 @@ export class Sessions extends Context.Service<Sessions>()(
         values (${userId}, ${secretHash},
                 now() + least(${idle}::float8, ${absolute}::float8) * interval '1 second',
                 now() + ${absolute}::float8 * interval '1 second')
-        returning id, expires_at`.pipe(
-					Effect.flatMap(Schema.decodeUnknownEffect(Schema.Tuple([CreatedRow]))),
+        returning id, expires_at, absolute_expires_at`.pipe(
+					Effect.flatMap(decodeRows(Schema.Tuple([CreatedRow]))),
 				)
 				return {
 					sessionId: row.id,
 					token: `${row.id}.${Hex.encode(secret)}`,
 					expiresAt: row.expires_at,
+					absoluteExpiresAt: row.absolute_expires_at,
 				} satisfies CreatedSession
 			})
 
 			const validate = Effect.fn('Sessions.validate')(function* (token: string) {
 				const parts = parseToken(token)
-				if (Option.isNone(parts)) return Option.none<string>()
+				if (Option.isNone(parts)) return Option.none<LiveSession>()
 				const secretHash = yield* hash(parts.value.secret)
 				// One statement, so a concurrent revoke either commits first (no row
 				// matches) or after (the session was live when this request began).
 				// The expiry only moves forward, and never past the absolute expiry.
 				const rows = yield* sql`
         with live as (
-          select id, refreshed_at from auth_private.sessions
+          select id, user_id, refreshed_at from auth_private.sessions
           where id = ${parts.value.id} and secret_hash = ${secretHash} and expires_at > now()
         ), refreshed as (
           update auth_private.sessions s
@@ -68,8 +76,13 @@ export class Sessions extends Context.Service<Sessions>()(
           where s.id = live.id and s.expires_at > now()
             and live.refreshed_at <= now() - ${refresh}::float8 * interval '1 second'
         )
-        select id from live`.pipe(Effect.flatMap(decodeRows(SessionRow)))
-				return Option.map(Option.fromNullishOr(rows[0]), (row) => row.id)
+        select id, user_id from live`.pipe(
+					Effect.flatMap(decodeRows(Schema.Array(SessionRow))),
+				)
+				return Option.map(Option.fromNullishOr(rows[0]), (row): LiveSession => ({
+					sessionId: row.id,
+					userId: row.user_id,
+				}))
 			})
 
 			const revoke = Effect.fn('Sessions.revoke')(function* (sessionId: string) {
@@ -147,9 +160,10 @@ const parseToken = (token: string) =>
 const tokenPattern =
 	/^([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\.([0-9a-f]{64})$/
 
-const decodeRows = <S extends Schema.Top>(row: S) =>
-	Schema.decodeUnknownEffect(Schema.Array(row))
+const SessionRow = Schema.Struct({ id: Schema.String, user_id: Schema.String })
 
-const SessionRow = Schema.Struct({ id: Schema.String })
-
-const CreatedRow = Schema.Struct({ id: Schema.String, expires_at: Schema.Date })
+const CreatedRow = Schema.Struct({
+	id: Schema.String,
+	expires_at: Schema.Date,
+	absolute_expires_at: Schema.Date,
+})

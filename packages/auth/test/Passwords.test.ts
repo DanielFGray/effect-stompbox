@@ -100,7 +100,7 @@ layer(live, { excludeTestServices: true })('Passwords', (it) => {
 			const session = yield* signIn(Option.some(user), 'correct horse')
 			assert.deepStrictEqual(
 				yield* sessions.validate(session.token),
-				Option.some(session.sessionId),
+				Option.some({ sessionId: session.sessionId, userId: user }),
 			)
 			const [row] = yield* owner(
 				(sql) =>

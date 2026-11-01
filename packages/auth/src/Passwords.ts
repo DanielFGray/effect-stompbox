@@ -1,19 +1,9 @@
 import { mapSqlState, OwnerPool } from '@effect-backend/visitor'
 import { Context, Effect, Layer, Option, Schema } from 'effect'
 
+import { AccountLocked, InvalidCredentials } from './api.ts'
+import { decodeRows } from './Rows.ts'
 import { Sessions } from './Sessions.ts'
-
-/** The user is unknown, has no password, or gave the wrong one. */
-export class InvalidCredentials extends Schema.TaggedError<
-	InvalidCredentials,
-	{ readonly brand: unique symbol }
->()('InvalidCredentials', {}) {}
-
-/** Too many failed sign-ins in a short time; the user must wait. */
-export class AccountLocked extends Schema.TaggedError<
-	AccountLocked,
-	{ readonly brand: unique symbol }
->()('AccountLocked', {}) {}
 
 /**
  * Password sign-in over the feature `passwords`, on the owner pool. SQL
@@ -41,7 +31,7 @@ export class Passwords extends Context.Service<Passwords>()(
 			const createUser = Effect.fn('Passwords.createUser')(function* (password: string) {
 				const [{ id }] =
 					yield* sql`insert into auth.users default values returning id`.pipe(
-						Effect.flatMap(Schema.decodeUnknownEffect(Schema.Tuple([IdRow]))),
+						Effect.flatMap(decodeRows(Schema.Tuple([IdRow]))),
 					)
 				yield* set(id, password)
 				return id
@@ -60,7 +50,7 @@ export class Passwords extends Context.Service<Passwords>()(
 				const id = Option.getOrNull(userId)
 				const [{ ok }] =
 					yield* sql`select auth_private.check_password(${id}, ${password}) as ok`.pipe(
-						Effect.flatMap(Schema.decodeUnknownEffect(Schema.Tuple([CheckRow]))),
+						Effect.flatMap(decodeRows(Schema.Tuple([CheckRow]))),
 						mapSqlState({ LOCKD: () => new AccountLocked() }),
 					)
 				return yield* Option.match(

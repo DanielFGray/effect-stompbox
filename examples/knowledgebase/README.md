@@ -37,15 +37,18 @@ Check: `bunx tsc --noEmit -p examples/knowledgebase` lists each missing part.
 2. **Table types per role** (step 2b): `VisitorTables` holds only what the
    visitor may reach, so a query outside that does not compile.
    `OwnerTables` holds everything.
-3. **The `passwords` feature and `Passwords`** (`@effect-backend/auth`):
-   `createUser`, `signIn`, and later `changePassword`. Argon2id through
-   Effect's `Kdf` (`BunCrypto.layerKdf`), a dummy hash for an unknown user,
-   and a new session at every sign-in.
-4. **`UserDirectory`** (`@effect-backend/auth`): the adapter the app provides
-   to find a user by the name it signs in with.
-5. **`@effect-backend/auth/api`**, safe to import in the browser: the
-   `SignedIn` middleware and the `InvalidCredentials` error.
-6. **`@effect-backend/auth/http`**: `SignedInLive`, which reads the cookie,
+3. **Done: the `passwords` feature and `Passwords`** (`@effect-backend/auth`):
+   `createUser`, `set` and `signIn`. SQL hashes with Argon2id (pgsodium),
+   hashes once for an unknown user, and counts failures; `signIn` creates a
+   new session every time. The example still passes a username to
+   `signIn`; the real form takes the user id the app found.
+4. **Dropped: `UserDirectory`.** The app finds the user id by name in its
+   own table and passes it to `signIn` (`docs/auth/design.md`). The
+   example's `AccountDirectory` goes in step 5.
+5. **Done: `@effect-backend/auth/api`**, safe to import in the browser: the
+   `SignedIn` middleware, `CurrentSession`, and the errors
+   `InvalidCredentials` (401) and `AccountLocked` (429).
+6. **Done: `@effect-backend/auth/http`**: `SignedInLive`, which reads the cookie,
    validates the session, provides `CurrentSession`, and runs the handler in
    one visitor transaction; and `SessionCookie.set` and `.clear`.
 7. **`OwnerPool.sqlClient`**: a layer that gives `deliver` the owner pool as

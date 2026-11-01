@@ -205,27 +205,34 @@ layer(live, { excludeTestServices: true })('session bridge', (it) => {
 })
 
 layer(live, { excludeTestServices: true })('Sessions.validate', (it) => {
-	it.effect('gives the session id for its token, and none for a bad or ended one', () =>
-		Effect.gen(function* () {
-			const sessions = yield* Sessions
-			const user = yield* newUser
-			const session = yield* sessions.create(user)
-			assert.deepStrictEqual(
-				yield* sessions.validate(session.token),
-				Option.some(session.sessionId),
-			)
+	it.effect(
+		'gives the session and its user for its token, and none for a bad or ended one',
+		() =>
+			Effect.gen(function* () {
+				const sessions = yield* Sessions
+				const user = yield* newUser
+				const session = yield* sessions.create(user)
+				assert.deepStrictEqual(
+					yield* sessions.validate(session.token),
+					Option.some({ sessionId: session.sessionId, userId: user }),
+				)
+				assert.closeTo(
+					(session.absoluteExpiresAt.getTime() - session.expiresAt.getTime()) / 1000,
+					23 * day,
+					60,
+				)
 
-			const wrongSecret = `${session.sessionId}.${'0'.repeat(64)}`
-			for (const token of [wrongSecret, 'not a token', `${session.sessionId}.zz`, ''])
-				assert.deepStrictEqual(yield* sessions.validate(token), Option.none())
+				const wrongSecret = `${session.sessionId}.${'0'.repeat(64)}`
+				for (const token of [wrongSecret, 'not a token', `${session.sessionId}.zz`, ''])
+					assert.deepStrictEqual(yield* sessions.validate(token), Option.none())
 
-			yield* age(session.sessionId, '8 days')
-			assert.deepStrictEqual(yield* sessions.validate(session.token), Option.none())
+				yield* age(session.sessionId, '8 days')
+				assert.deepStrictEqual(yield* sessions.validate(session.token), Option.none())
 
-			const revoked = yield* sessions.create(user)
-			yield* sessions.revokeAll(user)
-			assert.deepStrictEqual(yield* sessions.validate(revoked.token), Option.none())
-		}),
+				const revoked = yield* sessions.create(user)
+				yield* sessions.revokeAll(user)
+				assert.deepStrictEqual(yield* sessions.validate(revoked.token), Option.none())
+			}),
 	)
 
 	it.effect(
