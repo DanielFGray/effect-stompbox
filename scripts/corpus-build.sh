@@ -43,9 +43,12 @@ main() {
 build() {
 	local name repo commit search_path db url scratch
 	IFS='|' read -r name repo commit search_path <<<"$1"
-	db="effect_backend_$name"
 	url_var="CORPUS_${name^^}_URL"
 	url=${!url_var}
+	# The provisioner names the database (`ops dev db up` adds `_dev`), so read it
+	# from the URL instead of building it from the corpus name.
+	db=${url##*/}
+	db=${db%%\?*}
 	scratch="$scratch_root/$name"
 	mkdir "$scratch"
 
