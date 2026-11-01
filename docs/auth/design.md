@@ -127,7 +127,7 @@ the HTTP part of the package, which comes with password sign-in.
 
 ## Tests
 
-On a database built with `scripts/test-db.sh`, fixture app feature included:
+On the database `effect_backend_auth`, declared in `cartridge.json`:
 
 1. A valid session gives its user from `auth.current_user_id()` inside a
    visitor run; an expired, revoked or unknown session gives null; no session

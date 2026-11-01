@@ -37,6 +37,14 @@
 		{
 			"database": "effect_backend_visitor",
 			"extensions": []
+		},
+		{
+			"database": "effect_backend_delivery",
+			"extensions": []
+		},
+		{
+			"database": "effect_backend_auth",
+			"extensions": []
 		}
 	],
 	"services": [
@@ -89,6 +97,30 @@
 					"database": "effect_backend_visitor",
 					"login": "api",
 					"urlEnv": "VISITOR_API_URL"
+				},
+				{
+					"_tag": "PostgresCredentials",
+					"database": "effect_backend_delivery",
+					"login": "migration",
+					"urlEnv": "DELIVERY_OWNER_URL"
+				},
+				{
+					"_tag": "PostgresCredentials",
+					"database": "effect_backend_delivery",
+					"login": "api",
+					"urlEnv": "DELIVERY_API_URL"
+				},
+				{
+					"_tag": "PostgresCredentials",
+					"database": "effect_backend_auth",
+					"login": "migration",
+					"urlEnv": "AUTH_OWNER_URL"
+				},
+				{
+					"_tag": "PostgresCredentials",
+					"database": "effect_backend_auth",
+					"login": "api",
+					"urlEnv": "AUTH_API_URL"
 				}
 			]
 		}

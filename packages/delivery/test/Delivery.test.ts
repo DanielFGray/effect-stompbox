@@ -11,8 +11,8 @@ import { SqlClient } from 'effect/sql/SqlClient'
 
 import { deliver, DeliveryRefused, Feature, Features } from '../src/index.ts'
 
-// The test database comes from scripts/test-db.sh. Each test starts from a
-// database with none of the fixture features installed.
+// The test database is declared in cartridge.json (`ops dev db up`). Each
+// test starts from a database with none of the fixture features installed.
 const settings = ConfigProvider.layer(
 	Effect.gen(function* () {
 		return ConfigProvider.fromUnknown({

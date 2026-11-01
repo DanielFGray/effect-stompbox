@@ -25,8 +25,8 @@ import {
 	Visitor,
 } from '../src/index.ts'
 
-// The test database comes from scripts/test-db.sh. The API pool has
-// one connection, so consecutive requests always reuse the same one.
+// The test database is declared in cartridge.json (`ops dev db up`). The API
+// pool has one connection, so consecutive requests always reuse the same one.
 const settings = (overrides: Record<string, string>) =>
 	ConfigProvider.layer(
 		Effect.gen(function* () {

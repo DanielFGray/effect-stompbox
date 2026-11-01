@@ -25,8 +25,9 @@ import { SqlClient } from 'effect/sql/SqlClient'
 
 import { auth, SessionLifetimesInvalid, Sessions } from '../src/index.ts'
 
-// The test database comes from scripts/test-db.sh. The suite installs the
-// feature `auth` once, on a database without it, then builds the visitor.
+// The test database is declared in cartridge.json (`ops dev db up`). The
+// suite installs the feature `auth` once, on a database without it, then
+// builds the visitor.
 const settings = ConfigProvider.layer(
 	Effect.gen(function* () {
 		return ConfigProvider.fromUnknown({

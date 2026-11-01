@@ -15,12 +15,9 @@ versions in the "Supported Package Versions" table of
 
 ## Test databases
 
-Create each test database with `scripts/test-db.sh <database> <prefix>`. The
-script writes `<prefix>_OWNER_URL` and `<prefix>_API_URL` to `.env`.
-
-- `scripts/test-db.sh effect_backend_dev_visitor VISITOR`
-- `scripts/test-db.sh effect_backend_dev_delivery DELIVERY`
-- `scripts/test-db.sh effect_backend_dev_auth AUTH`
+The test databases are declared in `cartridge.json`. Create them with
+`ops dev db up` (needs an ops login from the last 2 hours); it writes
+`VISITOR_*`, `DELIVERY_*` and `AUTH_*` URLs to `.env`.
 
 Run the tests with `bun run test`.
 
