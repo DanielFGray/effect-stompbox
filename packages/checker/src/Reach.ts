@@ -8,7 +8,8 @@ import type { RoleContract } from './Roles.ts'
 /**
  * Everything the visitor role can reach, one line per object, sorted: each
  * schema it can use; each table, view, sequence and column with its
- * privileges; each function it can execute; and each extension as one line.
+ * privileges; each function it can execute; and each extension in a schema it can use, as
+ * one line.
  * Objects in a schema the visitor cannot use are left out, because it cannot
  * name them. Lines name no role, so two databases built from different
  * migrations compare line by line.
@@ -56,7 +57,7 @@ export const visitorReach = Effect.fn('visitorReach')(function* (roles: RoleCont
     union all
     select format('extension %I %s in %I', x.extname, x.extversion, n.nspname)
     from pg_extension x join pg_namespace n on n.oid = x.extnamespace
-    where x.extname <> 'plpgsql'
+    where x.extname <> 'plpgsql' and has_schema_privilege(${v}, n.oid, 'USAGE')
     order by 1`
 	const decoded = yield* Schema.decodeUnknownEffect(
 		Schema.Array(Schema.Struct({ line: Schema.String })),

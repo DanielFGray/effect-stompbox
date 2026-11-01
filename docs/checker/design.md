@@ -59,8 +59,10 @@ inheritance, which 16 introduced.
 The file lists everything the visitor may reach: each table or view with its
 privileges, and each function it may execute, with its full signature.
 Objects that belong to an extension (`pg_depend.deptype = 'e'`) are left out;
-each extension appears as one line with its schema and version, so an
-extension upgrade does not fill the diff with function signatures.
+each extension in a schema the visitor can use appears as one line with its
+schema and version, so an extension upgrade does not fill the diff with
+function signatures. An extension in a schema the visitor cannot use is left
+out, like every other object there.
 
 The file is a record of what a reviewer approved, so it must be written from a
 state that is known to be good, never from the change under review. If it
