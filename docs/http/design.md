@@ -24,12 +24,16 @@ Subpath exports of `@danielfgray/stompbox` (ADR 0009):
 | `@danielfgray/stompbox/http`        | generic error classes, `boundaryErrors`             | client and server |
 | `@danielfgray/stompbox/http/server` | `FailureBoundaryLayer.make`, `DatabaseAnswers.make` | server            |
 | `@danielfgray/stompbox/http/client` | `errorMessage`                                      | client            |
-| `@danielfgray/stompbox/visitor`     | `DatabaseError`, `PostgresReport`, `onSqlState`     | server            |
+| `@danielfgray/stompbox/db`          | Kysely runner `db`, `DatabaseError`, `onSqlState`   | server            |
+| `@danielfgray/stompbox/visitor`     | `Visitor.run`, `visitorDb`, `ownerDb` (bound `db`)  | server            |
 | `@danielfgray/stompbox/worker`      | `effectTask`, `promiseTask`, the `Worker.job` span  | worker            |
 
-`DatabaseError` and `PostgresReport` live in a module that imports only
-`effect`, so `http/server` imports them without the SQL driver. `http` and
-`http/client` import nothing server-side.
+`/db` holds the Kysely runner every app uses, with or without row-level
+security: Kysely compiles the query, the ambient `SqlClient` runs it, and a
+Schema decodes the rows (ADR 0006). `/visitor` binds it to the visitor's
+connection. `DatabaseError` and `PostgresReport` live in a module of `/db`
+that imports only `effect`, so `http/server` imports them without the SQL
+driver. `http` and `http/client` import nothing server-side.
 
 ## Error classes
 
@@ -126,7 +130,7 @@ list of app classes.
   generated client, and arrives with its status and `_tag`.
 - A deferred constraint that fails at commit reaches the answer table.
 - A client bundle built from a release tag contains no `http/server`,
-  `visitor` or SQL driver code.
+  `db`, `visitor` or SQL driver code.
 
 ## Tracing
 

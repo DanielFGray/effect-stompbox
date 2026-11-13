@@ -8,7 +8,7 @@ status: accepted
   github.com/DanielFGray/effect-stompbox. Apps depend on
   `"@danielfgray/stompbox": "github:DanielFGray/effect-stompbox#v0.2.0"`, so
   imports keep their names if it moves to npm later.
-- Each concern is a subpath export: `/visitor`, `/http`, `/http/server`,
+- Each concern is a subpath export: `/db`, `/visitor`, `/http`, `/http/server`,
   `/http/client`, `/worker`, `/auth`, `/checker`, `/delivery`, `/testing`.
   The build emits one JS file per source file with `.d.ts`, and the package
   declares `"sideEffects": false`, so a bundler takes only the modules an app
