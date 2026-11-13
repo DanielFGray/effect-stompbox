@@ -46,6 +46,19 @@ Each step ends with a check that does not depend on our own opinion.
 
 A council review comes before the code of each package.
 
+## Release
+
+`bun run release` tags the version in `package.json` at HEAD as `v<version>`.
+It runs typecheck, lint and build, then commits the built `dist/` on a
+temporary worktree and tags that commit. The current branch and the main
+checkout do not move. The tag stays local: the command prints
+`git push origin v<version>` for you to run. The test suite is not part of the
+gate, so run it before you release.
+
+The command refuses when the working tree has changes or the tag already
+exists. Apps install the tag with `bun install --ignore-scripts`
+(`docs/adr/0009-one-package-tagged-on-github.md`).
+
 ## Rules
 
 - Code goes into a package only where at least three apps already do the

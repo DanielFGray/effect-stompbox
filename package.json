@@ -58,7 +58,8 @@
 		"fmt": "oxfmt .",
 		"fmt:check": "oxfmt --check .",
 		"prepare": "effect-tsgo patch --typescript --oxlint",
-		"test": "bun --bun vitest run"
+		"test": "bun --bun vitest run",
+		"release": "bun scripts/release.ts"
 	},
 	"devDependencies": {
 		"@effect/platform-bun": "4.1.1",
