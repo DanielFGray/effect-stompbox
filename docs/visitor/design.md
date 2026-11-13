@@ -95,12 +95,13 @@ recover from one failed statement.
      outer transaction, so a nested call with another session would change
      the outer request's identity. A nested `Visitor.run` fails as a defect.
      Ordinary nested transactions inside one `Visitor.run` stay allowed.
-   - **Errors are mapped outside the transaction.** A failed statement aborts
-     the Postgres transaction even when the code catches the mapped error, so
-     `Visitor.run` rolls back first and maps after. Errors raised at commit
-     (deferred constraints) are mapped the same way. Code that must recover
-     from a failed statement and keep querying opens a nested transaction
-     (a savepoint) around it.
+   - **Errors are recovered outside the transaction.** A failed statement
+     aborts the Postgres transaction even when the code catches the error, so
+     mapping one error to another inside `Visitor.run` is safe (the
+     transaction still fails and rolls back), but recovering and querying on
+     is not. Code that must recover from a failed statement and keep querying
+     opens a nested transaction (a savepoint) around it. A failure at commit
+     (a deferred constraint) arrives as `DatabaseError`, like any other.
 
    Limit: SQL that runs as the visitor can run `RESET ROLE` and return to the
    API login. The library runs only SQL the app wrote, so this is safe as
@@ -159,8 +160,8 @@ step 3 provides), and drops it after.
    itself: a `DATABASE_VISITOR` override naming a role it cannot switch to.
 6. A function that raises `CREDS` maps to the caller's tagged error, and a
    caller that names `23505` gets its tagged error for a unique violation;
-   an unmapped error becomes a defect. A deferred constraint that fails at
-   commit maps the same way.
+   an unmapped code stays `DatabaseError`. A deferred constraint that fails
+   at commit arrives as `DatabaseError` and maps the same way.
 7. Queries run concurrently inside `Visitor.run` (`Effect.all` with
    concurrency) all run on the transaction's one connection, in order, and
    all see the visitor's rows.

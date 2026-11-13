@@ -16,5 +16,7 @@ port that had missed six endpoints. Decided by the user on 2026-11-13.
   whatever it depends on. The app passes its own data in (for example its
   custom codes).
 - Wiring stays in the template and the app: layer composition, routes,
-  config.
+  config. Tracing is wiring: its layers are composition each app tunes,
+  so it stays in the template although three apps carry it (decided by the
+  user on 2026-11-13).
 - 0005's rule stands: no package only renames Effect.
