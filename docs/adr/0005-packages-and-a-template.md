@@ -1,5 +1,6 @@
 ---
 status: accepted
+superseded_in_part_by: 0008 (the template half)
 ---
 
 # Packages for what Postgres buys; a template for the rest
