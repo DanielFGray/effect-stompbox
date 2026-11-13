@@ -106,12 +106,18 @@ recover from one failed statement.
    API login. The library runs only SQL the app wrote, so this is safe as
    long as no request can supply SQL text.
 
-5. **Error mapping.** A function that turns `SqlError` into the app's tagged
-   errors by SQLSTATE code, for the codes the caller names; every other
-   database error becomes a logged defect. The apps raise their own 5-letter
-   codes (for example `CREDS`, `TAKEN`) from SQL functions; those arrive as
-   `UnknownError` with the code on the driver error, so the mapping decodes
-   the code with a Schema, not a type guard.
+5. **Error mapping.** `visitorDb` and `ownerDb` fail with `DatabaseError`,
+   whose `PostgresReport` (code, message, detail, hint, constraint) is
+   decoded from the driver error once, with a Schema. The apps raise their
+   own 5-letter codes (for example `CREDS`, `TAKEN`) from SQL functions; those
+   arrive as `UnknownError` with the code on the driver error. A service maps
+   the codes it reacts to with `onSqlState({ CODE: (error) => DomainError })`;
+   every other `DatabaseError` passes through to the handler's answer table
+   (`docs/http/design.md`), which answers it or lets it die as a 500.
+   `onSqlState` replaces `mapSqlState`, which made every unlisted code a
+   defect at the service, so standard codes (unique, foreign key, row-level
+   security) had to be listed in each service. Decided by the user on
+   2026-11-13.
 
 Outside a request, code uses `OwnerPool` explicitly. There is no default that
 quietly runs as the owner: setlist's `Kysely` service defaults to the owner
