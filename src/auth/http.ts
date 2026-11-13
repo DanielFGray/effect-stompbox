@@ -4,7 +4,6 @@ import * as HttpApiError from 'effect/http-api/HttpApiError'
 import type * as Cookies from 'effect/http/Cookies'
 import * as HttpEffect from 'effect/http/HttpEffect'
 import * as HttpServerResponse from 'effect/http/HttpServerResponse'
-import { isSqlError } from 'effect/sql/SqlError'
 
 // The server's half of `SignedIn`, and the session cookie. Server only.
 import { RequestSession, Visitor } from '../visitor/index.ts'
@@ -35,10 +34,6 @@ export const SignedInLive = Layer.effect(
 								Effect.provideService(RequestSession, Option.some(session.sessionId)),
 							),
 					),
-					// Only a database error at validate, begin or commit is a defect.
-					// The handler's own errors pass through untouched: the API builder
-					// turns them into responses after this middleware returns.
-					Effect.catchIf(isSqlError, Effect.die),
 				),
 		})
 	}),

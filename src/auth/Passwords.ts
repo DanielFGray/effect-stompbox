@@ -1,6 +1,6 @@
 import { Context, Effect, Layer, Option, Schema } from 'effect'
 
-import { mapSqlState } from '../db/index.ts'
+import { onSqlState, toDatabaseError } from '../db/index.ts'
 import { OwnerPool } from '../visitor/index.ts'
 import { AccountLocked, InvalidCredentials } from './api.ts'
 import { decodeRows } from './Rows.ts'
@@ -22,7 +22,9 @@ export class Passwords extends Context.Service<Passwords>()(
 				userId: string,
 				password: string,
 			) {
-				yield* sql`select auth_private.set_password(${userId}, ${password})`
+				yield* sql`select auth_private.set_password(${userId}, ${password})`.pipe(
+					toDatabaseError,
+				)
 			})
 
 			/**
@@ -33,6 +35,7 @@ export class Passwords extends Context.Service<Passwords>()(
 				const [{ id }] =
 					yield* sql`insert into auth.users default values returning id`.pipe(
 						Effect.flatMap(decodeRows(Schema.Tuple([IdRow]))),
+						toDatabaseError,
 					)
 				yield* set(id, password)
 				return id
@@ -52,7 +55,8 @@ export class Passwords extends Context.Service<Passwords>()(
 				const [{ ok }] =
 					yield* sql`select auth_private.check_password(${id}, ${password}) as ok`.pipe(
 						Effect.flatMap(decodeRows(Schema.Tuple([CheckRow]))),
-						mapSqlState({ LOCKD: () => new AccountLocked() }),
+						toDatabaseError,
+						onSqlState({ LOCKD: () => new AccountLocked() }),
 					)
 				return yield* Option.match(
 					Option.filter(userId, () => ok),

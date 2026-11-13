@@ -16,7 +16,6 @@ import {
 	roleContract,
 	visitorReach,
 } from '../../src/checker/index.ts'
-import { sqlState } from '../../src/db/index.ts'
 import { deliver, Features } from '../../src/delivery/index.ts'
 import {
 	ApiPool,
@@ -207,7 +206,7 @@ layer(live, { excludeTestServices: true })('Passwords', (it) => {
 					.pipe(
 						Effect.provideService(RequestSession, Option.none()),
 						Effect.flip,
-						Effect.map(sqlState),
+						Effect.map((error) => Option.map(error.report, ({ code }) => code)),
 					)
 			assert.deepStrictEqual(
 				yield* denied('select 1 from auth_private.passwords'),

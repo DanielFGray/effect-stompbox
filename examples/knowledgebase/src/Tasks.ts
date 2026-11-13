@@ -1,4 +1,3 @@
-import { mapSqlState } from '@danielfgray/stompbox/db'
 import { visitorDb } from '@danielfgray/stompbox/visitor'
 import { Context, Effect, Layer, Option } from 'effect'
 import { sql } from 'kysely'
@@ -29,7 +28,7 @@ export class Tasks extends Context.Service<Tasks>()('knowledgebase/Tasks', {
 					onSome: (s) => all.where('status', '=', s),
 				})
 			})
-		}, mapSqlState({})),
+		}),
 
 		create: Effect.fn('Tasks.create')(function* (title: string, dueDate: Date | null) {
 			return yield* db.one(Task, (k) =>
@@ -38,7 +37,7 @@ export class Tasks extends Context.Service<Tasks>()('knowledgebase/Tasks', {
 					.values({ title, due_date: dueDate })
 					.returningAll(),
 			)
-		}, mapSqlState({})),
+		}),
 
 		// Another user's task is not found either: the policy hides it.
 		complete: Effect.fn('Tasks.complete')(function* (taskId: string) {
@@ -50,7 +49,7 @@ export class Tasks extends Context.Service<Tasks>()('knowledgebase/Tasks', {
 					.returningAll(),
 			)
 			return yield* Effect.fromOption(task, () => new TaskNotFound({ taskId }))
-		}, mapSqlState({})),
+		}),
 	}),
 }) {
 	static readonly layer = Layer.effect(this, this.make)

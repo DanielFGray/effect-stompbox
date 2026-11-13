@@ -16,7 +16,6 @@ import {
 	roleContract,
 	visitorReach,
 } from '../../src/checker/index.ts'
-import { sqlState } from '../../src/db/index.ts'
 import { deliver, Features } from '../../src/delivery/index.ts'
 import {
 	ApiPool,
@@ -173,7 +172,7 @@ layer(live, { excludeTestServices: true })('session bridge', (it) => {
 					.pipe(
 						Effect.provideService(RequestSession, Option.none()),
 						Effect.flip,
-						Effect.map(sqlState),
+						Effect.map((error) => Option.map(error.report, ({ code }) => code)),
 					)
 			assert.deepStrictEqual(yield* denied('auth_private.sessions'), Option.some('42501'))
 			assert.deepStrictEqual(yield* denied('auth.users'), Option.some('42501'))

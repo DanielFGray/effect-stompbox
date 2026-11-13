@@ -2,7 +2,6 @@ import { CurrentSession, Sessions } from '@danielfgray/stompbox/auth'
 import { SessionCookie } from '@danielfgray/stompbox/auth/http'
 import { Effect, Layer, Option } from 'effect'
 import * as HttpApiBuilder from 'effect/http-api/HttpApiBuilder'
-import { isSqlError } from 'effect/sql/SqlError'
 
 import { Accounts } from './Accounts.ts'
 import { KnowledgebaseApi } from './Api.ts'
@@ -43,7 +42,6 @@ const Private = HttpApiBuilder.group(KnowledgebaseApi, 'private', (handlers) =>
 				CurrentSession.pipe(
 					Effect.flatMap(({ sessionId }) => sessions.revoke(sessionId)),
 					Effect.andThen(SessionCookie.clear),
-					Effect.catchIf(isSqlError, Effect.die),
 				),
 			)
 			.handle('me', () => accounts.me)

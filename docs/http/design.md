@@ -1,9 +1,8 @@
 # HTTP failure handling: design
 
-Status: API decided by the user on 2026-11-13 and revised after the council
-review (task "Council review of the http failure-handling design"). No code
-exists yet. Shared under ADR 0008: setlist, postgres.garden and the template
-carry this code today, differing only in import paths and per-app data.
+Status: implemented in `src/http`. Shared under ADR 0008: setlist,
+postgres.garden and the template carry their own copies of this code today,
+differing only in import paths and per-app data.
 
 ## What it is
 
@@ -31,9 +30,10 @@ Subpath exports of `@danielfgray/stompbox` (ADR 0009):
 `/db` holds the Kysely runner every app uses, with or without row-level
 security: Kysely compiles the query, the ambient `SqlClient` runs it, and a
 Schema decodes the rows (ADR 0006). `/visitor` binds it to the visitor's
-connection. `DatabaseError` and `PostgresReport` live in a module of `/db`
-that imports only `effect`, so `http/server` imports them without the SQL
-driver. `http` and `http/client` import nothing server-side.
+connection. `DatabaseError` and `PostgresReport` live in a module of `/db` that imports
+only `effect`; `toDatabaseError`, which needs `effect/sql`, lives apart. So
+`http` (which lists `DatabaseError` in `boundaryErrors`) and `http/server`
+import them without the SQL driver.
 
 ## Error classes
 
@@ -93,6 +93,9 @@ export const toHttpError = DatabaseAnswers.make({
   23505 (by constraint, else `already_exists`), 23503, 42501, 23502, 23514,
   class 22, 40001, 40P01, 57014.
 - Anything else dies, and the boundary answers 500.
+- `boundaryErrors` lists `DatabaseError`, so handlers and `SignedIn` let it
+  through typed. The generated client's error union lists `DatabaseError`
+  although the boundary never lets it reach the wire.
 - An expected refusal logs at Info (custom) or Warning (standard), once.
 
 ## Service-level codes
@@ -114,8 +117,8 @@ transaction. Recovering is not, because Postgres aborts the transaction on a
 failed statement; recover outside `Visitor.run`, or inside a nested
 transaction (a savepoint).
 
-`onSqlState` replaces `mapSqlState`, which died on unlisted codes at the
-service.
+`onSqlState` leaves every unlisted code as `DatabaseError`, so a service lists
+only the codes it reacts to.
 
 ## Client messages
 

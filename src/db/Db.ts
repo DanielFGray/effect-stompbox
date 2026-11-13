@@ -9,6 +9,8 @@ import {
 	PostgresQueryCompiler,
 } from 'kysely'
 
+import { toDatabaseError } from './ToDatabaseError.ts'
+
 /**
  * Queries typed by `Tables`, run on the ambient `SqlClient`. Each method takes
  * the Schema of one row, so a query and its Schema that disagree do not
@@ -29,7 +31,7 @@ export const runnerOn = <Tables, R>(client: Effect.Effect<SqlClient, never, R>) 
 		Effect.gen(function* () {
 			const sql = yield* client
 			const query = build(kysely).compile()
-			const raw = yield* sql.unsafe(query.sql, query.parameters)
+			const raw = yield* sql.unsafe(query.sql, query.parameters).pipe(toDatabaseError)
 			return yield* Schema.decodeUnknownEffect(Schema.Array(schema))(raw).pipe(
 				Effect.orDie,
 			)

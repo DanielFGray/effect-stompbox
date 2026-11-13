@@ -3,6 +3,8 @@ import { SqlClient } from 'effect/sql/SqlClient'
 import type { SqlError } from 'effect/sql/SqlError'
 
 import { c1, c2, Finding, roleContract } from '../checker/index.ts'
+import type { DatabaseError } from '../db/DatabaseError.ts'
+import { toDatabaseError } from '../db/ToDatabaseError.ts'
 import { Features, versionsBehind } from '../delivery/index.ts'
 import { ApiPool } from './Pools.ts'
 
@@ -59,8 +61,8 @@ export class Visitor extends Context.Service<
 		 * that transaction through `VisitorTransaction`, which only this provides.
 		 * A nested `sql.withTransaction` inside it is a savepoint.
 		 *
-		 * Database errors leave it unmapped; pipe the result through
-		 * `mapSqlState`, which then runs after the rollback.
+		 * Database failures arrive as `DatabaseError`. Map codes anywhere;
+		 * recover only outside `run` or inside a nested transaction (savepoint).
 		 *
 		 * A fiber forked inside `effect` that queries after `run` returns gets a
 		 * connection error, never another request's transaction: the Postgres
@@ -69,7 +71,11 @@ export class Visitor extends Context.Service<
 		 */
 		readonly run: <A, E, R>(
 			effect: Effect.Effect<A, E, R>,
-		) => Effect.Effect<A, E | SqlError, Exclude<R, VisitorTransaction> | RequestSession>
+		) => Effect.Effect<
+			A,
+			Exclude<E, SqlError> | DatabaseError,
+			Exclude<R, VisitorTransaction> | RequestSession
+		>
 	}
 >()('@danielfgray/stompbox/visitor/Visitor') {
 	static readonly layer = Layer.effect(
@@ -84,15 +90,17 @@ export class Visitor extends Context.Service<
 					if (Option.isSome(yield* Effect.serviceOption(api.transactionService)))
 						return yield* Effect.die(new NestedVisitorRun())
 					const session = yield* RequestSession
-					return yield* api.withTransaction(
-						Effect.gen(function* () {
-							yield* api`select set_config('role', ${roles.visitor}, true),
+					return yield* api
+						.withTransaction(
+							Effect.gen(function* () {
+								yield* api`select set_config('role', ${roles.visitor}, true),
 							                  set_config('my.session_id', ${Option.getOrElse(session, () => '')}, true)`
-							return yield* effect.pipe(
-								Effect.provideService(VisitorTransaction, { sql: api }),
-							)
-						}),
-					)
+								return yield* effect.pipe(
+									Effect.provideService(VisitorTransaction, { sql: api }),
+								)
+							}),
+						)
+						.pipe(toDatabaseError)
 				})
 			const features = yield* Features
 			const behind = yield* run(

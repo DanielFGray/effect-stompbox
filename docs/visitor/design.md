@@ -1,6 +1,6 @@
 # Visitor transaction library: design
 
-Status: revised after council review (round 1 of 1). No code exists yet. Step 2 of the plan in
+Status: implemented in `src/visitor` and `src/db`. Step 2 of the plan in
 `README.md`.
 
 ## What it is
@@ -115,7 +115,7 @@ recover from one failed statement.
    the codes it reacts to with `onSqlState({ CODE: (error) => DomainError })`;
    every other `DatabaseError` passes through to the handler's answer table
    (`docs/http/design.md`), which answers it or lets it die as a 500.
-   `onSqlState` replaces `mapSqlState`, which made every unlisted code a
+   `onSqlState` replaced an earlier mapper that made every unlisted code a
    defect at the service, so standard codes (unique, foreign key, row-level
    security) had to be listed in each service. Decided by the user on
    2026-11-13.

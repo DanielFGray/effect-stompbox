@@ -210,7 +210,10 @@ Two entry points, so a browser bundle never imports server code:
 payload decoding, handler and response encoding are all inside that one
 transaction, so a typed error from the handler rolls the transaction back
 and still reaches the client with its own status. A database error at
-begin or commit is a defect (500). A streaming response body is read after
+begin or commit fails `SignedIn` with `DatabaseError`, which `SignedIn`
+declares, so an app that uses it needs the boundary from
+`@danielfgray/stompbox/http/server` to answer it; without one the client
+receives the `DatabaseError` itself, with Postgres's message and report. A streaming response body is read after
 the transaction ends, so a streaming endpoint must not use `SignedIn`.
 
 The cookie:

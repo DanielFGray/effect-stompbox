@@ -3,6 +3,7 @@ import * as Digest from 'effect/crypto/Digest'
 import * as SecureRandom from 'effect/crypto/SecureRandom'
 import * as Hex from 'effect/encoding/Hex'
 
+import { toDatabaseError } from '../db/index.ts'
 import { OwnerPool } from '../visitor/index.ts'
 import type { LiveSession } from './api.ts'
 import { decodeRows } from './Rows.ts'
@@ -46,6 +47,7 @@ export class Sessions extends Context.Service<Sessions>()(
                 now() + least(${idle}::float8, ${absolute}::float8) * interval '1 second',
                 now() + ${absolute}::float8 * interval '1 second')
         returning id, expires_at, absolute_expires_at`.pipe(
+					toDatabaseError,
 					Effect.flatMap(decodeRows(Schema.Tuple([CreatedRow]))),
 				)
 				return {
@@ -77,6 +79,7 @@ export class Sessions extends Context.Service<Sessions>()(
             and live.refreshed_at <= now() - ${refresh}::float8 * interval '1 second'
         )
         select id, user_id from live`.pipe(
+					toDatabaseError,
 					Effect.flatMap(decodeRows(Schema.Array(SessionRow))),
 				)
 				return Option.map(Option.fromNullishOr(rows[0]), (row): LiveSession => ({
@@ -86,16 +89,21 @@ export class Sessions extends Context.Service<Sessions>()(
 			})
 
 			const revoke = Effect.fn('Sessions.revoke')(function* (sessionId: string) {
-				yield* sql`delete from auth_private.sessions where id = ${sessionId}`
+				yield* sql`delete from auth_private.sessions where id = ${sessionId}`.pipe(
+					toDatabaseError,
+				)
 			})
 
 			const revokeAll = Effect.fn('Sessions.revokeAll')(function* (userId: string) {
-				yield* sql`delete from auth_private.sessions where user_id = ${userId}`
+				yield* sql`delete from auth_private.sessions where user_id = ${userId}`.pipe(
+					toDatabaseError,
+				)
 			})
 
 			/** Deletes sessions that have ended. The app's worker runs it on a schedule. */
 			const deleteExpired =
 				sql`delete from auth_private.sessions where expires_at <= now()`.pipe(
+					toDatabaseError,
 					Effect.asVoid,
 					Effect.withSpan('Sessions.deleteExpired'),
 				)

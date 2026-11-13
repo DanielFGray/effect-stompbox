@@ -1,5 +1,5 @@
 import { InvalidCredentials, Passwords, Sessions } from '@danielfgray/stompbox/auth'
-import { mapSqlState } from '@danielfgray/stompbox/db'
+import { onSqlState } from '@danielfgray/stompbox/db'
 import { OwnerPool, ownerDb, visitorDb } from '@danielfgray/stompbox/visitor'
 import { Context, Effect, Layer, Option } from 'effect'
 
@@ -37,7 +37,7 @@ export class Accounts extends Context.Service<Accounts>()('knowledgebase/Account
 				return { account, session }
 			},
 			owner.withTransaction,
-			mapSqlState({ '23505': () => new UsernameTaken() }),
+			onSqlState({ '23505': () => new UsernameTaken() }),
 			Effect.provideService(OwnerPool, pool),
 		)
 
@@ -64,14 +64,13 @@ export class Accounts extends Context.Service<Accounts>()('knowledgebase/Account
 					session,
 				}
 			},
-			mapSqlState({}),
 			Effect.provideService(OwnerPool, pool),
 		)
 
 		/** The signed-in user's own row; the `select_own` policy hides every other. */
-		const me = visitor
-			.one(Account, (k) => k.selectFrom('app_public.accounts').select(['id', 'username']))
-			.pipe(mapSqlState({}))
+		const me = visitor.one(Account, (k) =>
+			k.selectFrom('app_public.accounts').select(['id', 'username']),
+		)
 
 		return { register, signIn, me }
 	}),

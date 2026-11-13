@@ -14,7 +14,7 @@ import {
 } from 'effect'
 import type { Generated } from 'kysely'
 
-import { mapSqlState } from '../../src/db/index.ts'
+import { DatabaseError, onSqlState, toDatabaseError } from '../../src/db/index.ts'
 import { Features } from '../../src/delivery/index.ts'
 import {
 	ApiPool,
@@ -75,7 +75,9 @@ const Login = Schema.Struct({
 })
 
 /**
- * A schema of its own for one test: a notes table under row-level security
+ * A schema of its own for one test. `insert` and `failCreds` stand for a
+ * service's raw queries, which convert their failure with `toDatabaseError`:
+ * a notes table under row-level security
  * that shows each session its own rows, and a function that raises `CREDS`.
  * Dropped when the test's scope closes.
  */
@@ -118,7 +120,9 @@ const fixture = Effect.gen(function* () {
 		name,
 		insert: (body: string) =>
 			Effect.flatMap(visitorSql, (sql) =>
-				sql.unsafe(`insert into ${name}.notes (body) values ($1)`, [body]),
+				sql
+					.unsafe(`insert into ${name}.notes (body) values ($1)`, [body])
+					.pipe(toDatabaseError),
 			),
 		bodies: Effect.flatMap(visitorSql, (sql) =>
 			sql
@@ -126,7 +130,7 @@ const fixture = Effect.gen(function* () {
 				.pipe(Effect.flatMap(Schema.decodeUnknownEffect(Schema.Array(Note)))),
 		).pipe(Effect.map((rows) => rows.map((row) => row.body))),
 		failCreds: Effect.flatMap(visitorSql, (sql) =>
-			sql.unsafe(`select ${name}.fail_creds()`),
+			sql.unsafe(`select ${name}.fail_creds()`).pipe(toDatabaseError),
 		),
 		allBodies: owner.unsafe(`select body from ${name}.notes order by id`).pipe(
 			Effect.flatMap(Schema.decodeUnknownEffect(Schema.Array(Note))),
@@ -160,9 +164,11 @@ const diedNested = (exit: Exit.Exit<unknown, unknown>) =>
 /** The fiber failed because its connection lease was gone. */
 const lostConnection = (exit: Exit.Exit<unknown, unknown>) =>
 	Exit.isFailure(exit) &&
-	Schema.is(Schema.Struct({ reason: Schema.TaggedStruct('ConnectionError', {}) }))(
-		Cause.squash(exit.cause),
-	)
+	Schema.is(
+		Schema.Struct({
+			cause: Schema.Struct({ reason: Schema.TaggedStruct('ConnectionError', {}) }),
+		}),
+	)(Cause.squash(exit.cause))
 
 layer(live, { excludeTestServices: true })('Visitor.run', (it) => {
 	it.effect('shows a session only its own rows', () =>
@@ -217,22 +223,57 @@ layer(live, { excludeTestServices: true })('Visitor.run', (it) => {
 		}),
 	)
 
-	it.effect('maps SQLSTATE codes after the rollback, and makes the rest defects', () =>
+	it.effect(
+		'maps SQLSTATE codes outside the run, and leaves the rest as DatabaseError',
+		() =>
+			Effect.gen(function* () {
+				const t = yield* fixture
+				const codes = onSqlState({
+					CREDS: () => new BadCredentials(),
+					'23505': () => new Taken(),
+				})
+				const creds = yield* as('a')(t.failCreds).pipe(codes, Effect.flip)
+				assert.strictEqual(creds._tag, 'BadCredentials')
+				// The unique constraint is deferred, so the duplicate fails at COMMIT.
+				const taken = yield* as('a')(
+					t.insert('same').pipe(Effect.andThen(t.insert('same'))),
+				).pipe(codes, Effect.flip)
+				assert.strictEqual(taken._tag, 'Taken')
+				const unmapped = yield* as('a')(t.failCreds).pipe(onSqlState({}), Effect.flip)
+				assert.isTrue(Schema.is(DatabaseError)(unmapped))
+			}),
+	)
+
+	it.effect(
+		'fails a deferred constraint at commit as DatabaseError with its report',
+		() =>
+			Effect.gen(function* () {
+				const t = yield* fixture
+				const error = yield* as('a')(
+					t.insert('same').pipe(Effect.andThen(t.insert('same'))),
+				).pipe(Effect.flip)
+				assert.isTrue(Schema.is(DatabaseError)(error))
+				assert.deepStrictEqual(
+					Option.map(error.report, ({ code, constraint }) => [code, constraint]),
+					Option.some(['23505', Option.some('body_unique')]),
+				)
+				assert.deepStrictEqual(yield* t.allBodies, [])
+			}),
+	)
+
+	it.effect('maps a code inside the run, and the transaction still rolls back', () =>
 		Effect.gen(function* () {
 			const t = yield* fixture
-			const codes = mapSqlState({
-				CREDS: () => new BadCredentials(),
-				'23505': () => new Taken(),
-			})
-			const creds = yield* as('a')(t.failCreds).pipe(codes, Effect.flip)
-			assert.strictEqual(creds._tag, 'BadCredentials')
-			// The unique constraint is deferred, so the duplicate fails at COMMIT.
-			const taken = yield* as('a')(
-				t.insert('same').pipe(Effect.andThen(t.insert('same'))),
-			).pipe(codes, Effect.flip)
-			assert.strictEqual(taken._tag, 'Taken')
-			const unmapped = yield* as('a')(t.failCreds).pipe(mapSqlState({}), Effect.exit)
-			assert.isTrue(Exit.isFailure(unmapped) && Cause.hasDies(unmapped.cause))
+			const mapped = yield* as('a')(
+				t
+					.insert('lost')
+					.pipe(
+						Effect.andThen(t.failCreds),
+						onSqlState({ CREDS: () => new BadCredentials() }),
+					),
+			).pipe(Effect.flip)
+			assert.instanceOf(mapped, BadCredentials)
+			assert.deepStrictEqual(yield* t.allBodies, [])
 		}),
 	)
 
@@ -438,7 +479,7 @@ layer(live, { excludeTestServices: true })('visitorDb and ownerDb', (it) => {
 					// the savepoint, so the request goes on and commits.
 					const refused = yield* sql
 						.withTransaction(t.insert('in savepoint').pipe(Effect.andThen(t.failCreds)))
-						.pipe(mapSqlState({ CREDS: () => new BadCredentials() }), Effect.flip)
+						.pipe(onSqlState({ CREDS: () => new BadCredentials() }), Effect.flip)
 					assert.instanceOf(refused, BadCredentials)
 					yield* t.insert('after')
 					return yield* t.bodies

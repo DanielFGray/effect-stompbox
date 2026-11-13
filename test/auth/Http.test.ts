@@ -16,13 +16,13 @@ import * as HttpApi from 'effect/http-api/HttpApi'
 import * as HttpApiBuilder from 'effect/http-api/HttpApiBuilder'
 import * as HttpApiEndpoint from 'effect/http-api/HttpApiEndpoint'
 import * as HttpApiGroup from 'effect/http-api/HttpApiGroup'
+import * as HttpApiMiddleware from 'effect/http-api/HttpApiMiddleware'
 import * as HttpEffect from 'effect/http/HttpEffect'
 import * as HttpRouter from 'effect/http/HttpRouter'
 import * as HttpServer from 'effect/http/HttpServer'
 import * as HttpServerRequest from 'effect/http/HttpServerRequest'
 import * as HttpServerResponse from 'effect/http/HttpServerResponse'
 import { SqlClient } from 'effect/sql/SqlClient'
-import { isSqlError } from 'effect/sql/SqlError'
 
 import {
 	AccountLocked,
@@ -33,6 +33,8 @@ import {
 import { SessionCookie, SignedInLive } from '../../src/auth/http.ts'
 import { auth, Passwords, passwords, Sessions } from '../../src/auth/index.ts'
 import { deliver, Features } from '../../src/delivery/index.ts'
+import { boundaryErrors } from '../../src/http/index.ts'
+import { DatabaseAnswers, FailureBoundaryLayer } from '../../src/http/server/index.ts'
 import {
 	ApiPool,
 	OwnerPool,
@@ -46,6 +48,21 @@ class NoSuchThing extends Schema.TaggedError<
 	NoSuchThing,
 	{ readonly brand: unique symbol }
 >()('NoSuchThing', {}, { httpApiStatus: 404 }) {}
+
+class Duplicate extends Schema.TaggedError<
+	Duplicate,
+	{ readonly brand: unique symbol }
+>()('Duplicate', { message: Schema.String }, { httpApiStatus: 409 }) {}
+
+class FailureBoundary extends HttpApiMiddleware.Service<FailureBoundary>()(
+	'test/FailureBoundary',
+	{ error: [...boundaryErrors, Duplicate] },
+) {}
+
+const toHttpError = DatabaseAnswers.make({
+	codes: {},
+	constraints: { duplicate_key: new Duplicate({ message: 'Already there.' }) },
+})
 
 const Me = Schema.Struct({ userId: Schema.String, sqlUserId: Schema.String })
 
@@ -63,7 +80,9 @@ class TestApi extends HttpApi.make('test')
 			.add(HttpApiEndpoint.get('me', '/me', { success: Me }))
 			.add(HttpApiEndpoint.get('missing', '/missing', { error: NoSuchThing }))
 			.add(HttpApiEndpoint.post('signOut', '/sign-out'))
-			.middleware(SignedIn),
+			.add(HttpApiEndpoint.post('twice', '/twice'))
+			.middleware(SignedIn)
+			.middleware(FailureBoundary),
 	) {}
 
 const handlers = Layer.mergeAll(
@@ -75,7 +94,7 @@ const handlers = Layer.mergeAll(
 					.signIn(Option.some(payload.userId), payload.password)
 					.pipe(
 						Effect.flatMap(SessionCookie.set),
-						Effect.catchIf(isSqlError, Effect.die),
+						Effect.catchTag('DatabaseError', Effect.die),
 					),
 			)
 		}),
@@ -83,30 +102,41 @@ const handlers = Layer.mergeAll(
 	HttpApiBuilder.group(TestApi, 'private', (h) =>
 		Effect.gen(function* () {
 			const sessions = yield* Sessions
-			return h
-				.handle('me', () =>
-					Effect.gen(function* () {
-						const { userId } = yield* CurrentSession
-						const { sql } = yield* VisitorTransaction
-						const [row] = yield* sql`select auth.current_user_id() as id`.pipe(
-							Effect.flatMap(
-								Schema.decodeUnknownEffect(
-									Schema.Tuple([Schema.Struct({ id: Schema.String })]),
+			return (
+				h
+					.handle('me', () =>
+						Effect.gen(function* () {
+							const { userId } = yield* CurrentSession
+							const { sql } = yield* VisitorTransaction
+							const [row] = yield* sql`select auth.current_user_id() as id`.pipe(
+								Effect.flatMap(
+									Schema.decodeUnknownEffect(
+										Schema.Tuple([Schema.Struct({ id: Schema.String })]),
+									),
 								),
-							),
-							Effect.orDie,
-						)
-						return { userId, sqlUserId: row.id }
-					}),
-				)
-				.handle('missing', () => Effect.fail(new NoSuchThing()))
-				.handle('signOut', () =>
-					CurrentSession.pipe(
-						Effect.flatMap(({ sessionId }) => sessions.revoke(sessionId)),
-						Effect.andThen(SessionCookie.clear),
-						Effect.catchIf(isSqlError, Effect.die),
-					),
-				)
+								Effect.orDie,
+							)
+							return { userId, sqlUserId: row.id }
+						}),
+					)
+					.handle('missing', () => Effect.fail(new NoSuchThing()))
+					// The unique constraint is deferred, so the duplicate fails when
+					// SignedIn commits, after the handler has returned.
+					.handle('twice', () =>
+						Effect.gen(function* () {
+							const { sql } = yield* VisitorTransaction
+							yield* sql`create temp table twice (v int, constraint duplicate_key unique (v) deferrable initially deferred) on commit drop`
+							yield* sql`insert into twice values (1), (1)`
+						}).pipe(Effect.orDie),
+					)
+					.handle('signOut', () =>
+						CurrentSession.pipe(
+							Effect.flatMap(({ sessionId }) => sessions.revoke(sessionId)),
+							Effect.andThen(SessionCookie.clear),
+							Effect.catchTag('DatabaseError', Effect.die),
+						),
+					)
+			)
 		}),
 	),
 )
@@ -114,6 +144,7 @@ const handlers = Layer.mergeAll(
 const app = HttpApiBuilder.layer(TestApi).pipe(
 	Layer.provide(handlers),
 	Layer.provide(SignedInLive),
+	Layer.provide(FailureBoundaryLayer.make(FailureBoundary, toHttpError)),
 )
 
 /** Sends a web `Request` through the app in process and returns the web `Response`. */
@@ -290,6 +321,19 @@ layer(live, { excludeTestServices: true })('SignedIn and SessionCookie', (it) =>
 			const [cookie] = cookiePair(yield* signIn(id, 'correct horse'))
 			const response = yield* send('/missing', withCookie(cookie ?? ''))
 			assert.strictEqual(response.status, 404)
+		}),
+	)
+
+	it.effect('a deferred constraint failing at commit answers through the table', () =>
+		Effect.gen(function* () {
+			const id = yield* user('correct horse')
+			const [cookie] = cookiePair(yield* signIn(id, 'correct horse'))
+			const response = yield* send('/twice', withCookie(cookie ?? '', 'POST'))
+			assert.strictEqual(response.status, 409)
+			assert.strictEqual(
+				((yield* Effect.promise(() => response.json())) as { _tag: string })._tag,
+				'Duplicate',
+			)
 		}),
 	)
 

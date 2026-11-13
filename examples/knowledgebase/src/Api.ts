@@ -7,10 +7,12 @@ import {
 	InvalidCredentials,
 	SignedIn,
 } from '@danielfgray/stompbox/auth/api'
+import { boundaryErrors } from '@danielfgray/stompbox/http'
 import { Schema } from 'effect'
 import * as HttpApi from 'effect/http-api/HttpApi'
 import * as HttpApiEndpoint from 'effect/http-api/HttpApiEndpoint'
 import * as HttpApiGroup from 'effect/http-api/HttpApiGroup'
+import * as HttpApiMiddleware from 'effect/http-api/HttpApiMiddleware'
 
 export const Account = Schema.Struct({ id: Schema.String, username: Schema.String })
 
@@ -41,6 +43,16 @@ export class TaskNotFound extends Schema.TaggedError<
 	{ readonly brand: unique symbol }
 >()('TaskNotFound', { taskId: Schema.String }, { httpApiStatus: 404 }) {}
 
+/**
+ * The failure boundary's tag: every class a request can fail with besides the
+ * ones an endpoint declares. The server half is `FailureBoundaryLayer.make` in
+ * `App.ts`.
+ */
+export class FailureBoundary extends HttpApiMiddleware.Service<FailureBoundary>()(
+	'knowledgebase/FailureBoundary',
+	{ error: boundaryErrors },
+) {}
+
 const Public = HttpApiGroup.make('public')
 	.add(
 		HttpApiEndpoint.post('register', '/register', {
@@ -56,9 +68,11 @@ const Public = HttpApiGroup.make('public')
 			error: [InvalidCredentials, AccountLocked],
 		}),
 	)
+	.middleware(FailureBoundary)
 
 // SignedIn answers 401 without a live session, so an endpoint added here is
-// private by default.
+// private by default. FailureBoundary comes after it, so it also answers a
+// failure at commit.
 const Private = HttpApiGroup.make('private')
 	.add(HttpApiEndpoint.post('signOut', '/sign-out'))
 	.add(HttpApiEndpoint.get('me', '/me', { success: Account }))
@@ -85,6 +99,7 @@ const Private = HttpApiGroup.make('private')
 		}),
 	)
 	.middleware(SignedIn)
+	.middleware(FailureBoundary)
 
 export class KnowledgebaseApi extends HttpApi.make('knowledgebase')
 	.add(Public)

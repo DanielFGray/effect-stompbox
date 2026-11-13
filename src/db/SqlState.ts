@@ -1,36 +1,35 @@
-import { Effect, Option, Schema } from 'effect'
-import { isSqlError, type SqlError } from 'effect/sql/SqlError'
+import { Effect, Option } from 'effect'
+
+import { type DatabaseError, isDatabaseError } from './DatabaseError.ts'
 
 /**
- * Turns database errors into the caller's typed errors by SQLSTATE code, and
- * every other database error into a defect. `errors` maps a code to the
- * error to fail with: a Postgres code such as `23505`, or a code an app's SQL
- * function raises, such as `CREDS`.
+ * Maps the SQLSTATE codes a service reacts to onto its own typed errors. `errors`
+ * maps a code to the error to fail with: a Postgres code such as `23505`, or a
+ * code an app's SQL function raises, such as `CREDS`. Every other database
+ * failure stays a `DatabaseError`, for the handler's answer table.
  *
- * Apply it outside `Visitor.run`: a failed statement aborts the Postgres
- * transaction, so the transaction must roll back before code recovers.
+ * Mapping inside `Visitor.run` is safe: the mapped error still fails the
+ * transaction. Recovering is not, because Postgres aborts the transaction on a
+ * failed statement; recover outside `Visitor.run`, or inside a savepoint.
  */
-export const mapSqlState = <M>(errors: {
-	readonly [K in keyof M]: (error: SqlError) => M[K]
+export const onSqlState = <M>(errors: {
+	readonly [K in keyof M]: (error: DatabaseError) => M[K]
 }) => {
 	// A Map, so a code never matches a property inherited from Object.prototype.
-	const byCode = new Map<string, (error: SqlError) => M[keyof M]>(Object.entries(errors))
-	return <A, E, R>(self: Effect.Effect<A, E | SqlError, R>) =>
-		Effect.catchIf(self, isSqlError, (error) =>
-			sqlState(error).pipe(
-				Option.flatMap((code) => Option.fromNullishOr(byCode.get(code))),
-				Option.match({
-					onNone: () => Effect.die(error),
-					onSome: (toError) => Effect.fail(toError(error)),
-				}),
+	const byCode = new Map<string, (error: DatabaseError) => M[keyof M]>(
+		Object.entries(errors),
+	)
+	return <A, E, R>(self: Effect.Effect<A, E | DatabaseError, R>) =>
+		Effect.catchIf(self, isDatabaseError, (error) =>
+			Effect.fail(
+				Option.flatMap(error.report, ({ code }) =>
+					Option.fromNullishOr(byCode.get(code)),
+				).pipe(
+					Option.match({
+						onNone: () => error,
+						onSome: (toError) => toError(error),
+					}),
+				),
 			),
 		)
 }
-
-/** The SQLSTATE code the Postgres driver reported, when it reported one. */
-export const sqlState = (error: SqlError) =>
-	Schema.decodeUnknownOption(DriverError)(error.reason.cause).pipe(
-		Option.map((e) => e.code),
-	)
-
-const DriverError = Schema.Struct({ code: Schema.String })
