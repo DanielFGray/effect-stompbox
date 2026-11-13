@@ -5,7 +5,7 @@ status: accepted
 # Features are delivered as versioned SQL in package-owned schemas
 
 The package's SQL comes in features. A feature is a directory of numbered
-migration files. The runner (`@effect-backend/delivery`) installs and
+migration files. The runner (`@danielfgray/stompbox/delivery`) installs and
 upgrades every feature an app uses, the app's own migrations included, in
 one transaction, as the owner role. It records each migration with a SHA-256
 hash of its text, and refuses to run when a migration that already ran has

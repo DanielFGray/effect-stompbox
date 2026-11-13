@@ -1,7 +1,7 @@
 # Auth package: design
 
 Status: accepted after council review (round 1 of 1); the sessions increment is built
-(`packages/auth`).
+(`src/auth`).
 Step 3 of the plan in `README.md`, second half. This document covers the
 first increment: the users and sessions tables and the session bridge of
 ADR 0004. Password sign-in, email, and OAuth come later as their own
@@ -21,7 +21,7 @@ same session SQL, and the copies differ (`docs/matrix/sql-drift.md`):
 
 ## What the increment ships
 
-Package `@effect-backend/auth`, which exports:
+Subpath `@danielfgray/stompbox/auth`, which exports:
 
 1. **The feature `auth`**, a directory of migrations for the runner
    (ADR 0007). Later auth features depend on it.
@@ -191,7 +191,7 @@ locks. The app can answer both errors the same way if that matters to it.
 
 Two entry points, so a browser bundle never imports server code:
 
-1. **`@effect-backend/auth/api`** imports only `effect` (and types from the
+1. **`@danielfgray/stompbox/auth/api`** imports only `effect` (and types from the
    visitor package). It holds what the browser and the server share:
    - `SignedIn`, an `HttpApiMiddleware` with the security scheme "API key in
      the cookie `__Host-session`". It provides `CurrentSession` and
@@ -199,7 +199,7 @@ Two entry points, so a browser bundle never imports server code:
      `Unauthorized` (401) when the request has no live session.
    - `CurrentSession`: the request's `{ sessionId, userId }`.
    - `InvalidCredentials` (401) and `AccountLocked` (429).
-2. **`@effect-backend/auth/http`**, server only:
+2. **`@danielfgray/stompbox/auth/http`**, server only:
    - `SignedInLive`, the layer that implements `SignedIn` with `Sessions`
      and `Visitor`.
    - `SessionCookie.set(session)` and `SessionCookie.clear`, for the

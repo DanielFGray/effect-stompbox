@@ -1,5 +1,5 @@
-import { TestApp } from '@effect-backend/testing'
-import { OwnerPool } from '@effect-backend/visitor'
+import { TestApp } from '@danielfgray/stompbox/testing'
+import { OwnerPool } from '@danielfgray/stompbox/visitor'
 import { assert, layer } from '@effect/vitest'
 import { ConfigProvider, Effect, Layer, Schema } from 'effect'
 

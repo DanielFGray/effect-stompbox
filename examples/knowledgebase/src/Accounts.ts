@@ -1,5 +1,6 @@
-import { InvalidCredentials, Passwords, Sessions } from '@effect-backend/auth'
-import { mapSqlState, OwnerPool, ownerDb, visitorDb } from '@effect-backend/visitor'
+import { InvalidCredentials, Passwords, Sessions } from '@danielfgray/stompbox/auth'
+import { mapSqlState } from '@danielfgray/stompbox/db'
+import { OwnerPool, ownerDb, visitorDb } from '@danielfgray/stompbox/visitor'
 import { Context, Effect, Layer, Option } from 'effect'
 
 import { Account, UsernameTaken } from './Api.ts'

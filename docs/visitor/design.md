@@ -190,9 +190,9 @@ open.
 
 ## Package layout
 
-A bun workspace with `packages/checker` (library and CLI) and
-`packages/visitor`. The visitor package imports C1 and C2 from the checker
-for its startup check.
+One package, `@danielfgray/stompbox` (ADR 0009), with the checker in
+`src/checker` (library and CLI) and the visitor in `src/visitor`. The visitor
+imports C1 and C2 from the checker for its startup check.
 
 ## Session id type
 

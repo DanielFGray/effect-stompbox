@@ -2,7 +2,11 @@
 // client-safe part of the auth package.
 // InvalidCredentials and AccountLocked come from the auth package, so every
 // app answers a failed sign-in the same way.
-import { AccountLocked, InvalidCredentials, SignedIn } from '@effect-backend/auth/api'
+import {
+	AccountLocked,
+	InvalidCredentials,
+	SignedIn,
+} from '@danielfgray/stompbox/auth/api'
 import { Schema } from 'effect'
 import * as HttpApi from 'effect/http-api/HttpApi'
 import * as HttpApiEndpoint from 'effect/http-api/HttpApiEndpoint'

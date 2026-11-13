@@ -26,7 +26,7 @@ What changes for the app:
 
 Check: `bunx tsc --noEmit -p examples/knowledgebase` lists each missing part.
 
-1. **Done: `visitorDb` and `ownerDb`** (`@effect-backend/visitor`): run
+1. **Done: `visitorDb` and `ownerDb`** (`@danielfgray/stompbox/visitor`): run
    Kysely builders through the pool's `SqlClient` and decode each row with a
    Schema (ADR 0006), as `db.all(Schema, (k) => ...)`. A `visitorDb` query needs the transaction that only `Visitor.run` provides,
    so one outside a request does not compile. setlist's
@@ -34,22 +34,22 @@ Check: `bunx tsc --noEmit -p examples/knowledgebase` lists each missing part.
 2. **Table types per role** (step 2b): `VisitorTables` holds only what the
    visitor may reach, so a query outside that does not compile.
    `OwnerTables` holds everything.
-3. **Done: the `passwords` feature and `Passwords`** (`@effect-backend/auth`):
+3. **Done: the `passwords` feature and `Passwords`** (`@danielfgray/stompbox/auth`):
    `createUser`, `set` and `signIn`. SQL hashes with Argon2id (pgsodium),
    hashes once for an unknown user, and counts failures; `signIn` creates a
    new session every time.
 4. **Dropped: `UserDirectory`.** The app finds the user id by name in its
    own table and passes it to `signIn` (`docs/auth/design.md`).
-5. **Done: `@effect-backend/auth/api`**, safe to import in the browser: the
+5. **Done: `@danielfgray/stompbox/auth/api`**, safe to import in the browser: the
    `SignedIn` middleware, `CurrentSession`, and the errors
    `InvalidCredentials` (401) and `AccountLocked` (429).
-6. **Done: `@effect-backend/auth/http`**: `SignedInLive`, which reads the cookie,
+6. **Done: `@danielfgray/stompbox/auth/http`**: `SignedInLive`, which reads the cookie,
    validates the session, provides `CurrentSession`, and runs the handler in
    one visitor transaction; and `SessionCookie.set` and `.clear`.
 7. **Dropped: `OwnerPool.sqlClient`.** `migrate.ts` gives `deliver` the owner
    pool with `Effect.provideService(SqlClient, owner)` for that one call, so
    no request code gets the owner as its `SqlClient`.
-8. **Done: `@effect-backend/testing`**: `TestApp.layer(app, { features,
+8. **Done: `@danielfgray/stompbox/testing`**: `TestApp.layer(app, { features,
    surface })` resets a database whose name ends in `_test`, delivers the
    features, runs checks C1 to C8, and runs the app in process.
    `TestApp.client(api)` gives a typed client with its own cookie jar, so

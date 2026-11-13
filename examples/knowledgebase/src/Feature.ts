@@ -1,5 +1,5 @@
-import { auth, passwords } from '@effect-backend/auth'
-import { Feature } from '@effect-backend/delivery'
+import { auth, passwords } from '@danielfgray/stompbox/auth'
+import { Feature } from '@danielfgray/stompbox/delivery'
 
 /** The app's own migrations, delivered after the auth features they use. */
 export const app = new Feature({

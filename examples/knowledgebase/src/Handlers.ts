@@ -1,5 +1,5 @@
-import { CurrentSession, Sessions } from '@effect-backend/auth'
-import { SessionCookie } from '@effect-backend/auth/http'
+import { CurrentSession, Sessions } from '@danielfgray/stompbox/auth'
+import { SessionCookie } from '@danielfgray/stompbox/auth/http'
 import { Effect, Layer, Option } from 'effect'
 import * as HttpApiBuilder from 'effect/http-api/HttpApiBuilder'
 import { isSqlError } from 'effect/sql/SqlError'

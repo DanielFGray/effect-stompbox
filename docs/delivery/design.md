@@ -154,7 +154,7 @@ install.
 ### 9. The server refuses to start behind the code
 
 Each feature's code knows the last migration it ships. The visitor startup
-check (`packages/visitor`) also reads the feature versions and fails with
+check (`src/visitor`) also reads the feature versions and fails with
 `StartupCheckFailed` when the database is behind the code. A database ahead
 of the code is accepted, because during a deploy the old code runs against
 the migrated database. This closes the release gap.

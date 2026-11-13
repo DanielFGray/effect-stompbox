@@ -1,12 +1,58 @@
 {
-	"name": "effect-backend",
-	"private": true,
+	"name": "@danielfgray/stompbox",
+	"version": "0.1.0",
 	"workspaces": [
-		"packages/*",
 		"examples/*"
 	],
+	"files": [
+		"dist"
+	],
 	"type": "module",
+	"sideEffects": false,
+	"exports": {
+		"./auth": {
+			"stompbox-source": "./src/auth/index.ts",
+			"types": "./dist/auth/index.d.ts",
+			"default": "./dist/auth/index.js"
+		},
+		"./auth/api": {
+			"stompbox-source": "./src/auth/api.ts",
+			"types": "./dist/auth/api.d.ts",
+			"default": "./dist/auth/api.js"
+		},
+		"./auth/http": {
+			"stompbox-source": "./src/auth/http.ts",
+			"types": "./dist/auth/http.d.ts",
+			"default": "./dist/auth/http.js"
+		},
+		"./checker": {
+			"stompbox-source": "./src/checker/index.ts",
+			"types": "./dist/checker/index.d.ts",
+			"default": "./dist/checker/index.js"
+		},
+		"./db": {
+			"stompbox-source": "./src/db/index.ts",
+			"types": "./dist/db/index.d.ts",
+			"default": "./dist/db/index.js"
+		},
+		"./delivery": {
+			"stompbox-source": "./src/delivery/index.ts",
+			"types": "./dist/delivery/index.d.ts",
+			"default": "./dist/delivery/index.js"
+		},
+		"./testing": {
+			"stompbox-source": "./src/testing/index.ts",
+			"types": "./dist/testing/index.d.ts",
+			"default": "./dist/testing/index.js"
+		},
+		"./visitor": {
+			"stompbox-source": "./src/visitor/index.ts",
+			"types": "./dist/visitor/index.d.ts",
+			"default": "./dist/visitor/index.js"
+		}
+	},
 	"scripts": {
+		"build": "bun scripts/build.ts",
 		"typecheck": "tsc --noEmit",
 		"lint": "oxlint --type-aware",
 		"fmt": "oxfmt .",
@@ -21,10 +67,28 @@
 		"@effect/vitest": "4.1.1",
 		"@types/bun": "^1.4.4",
 		"effect": "4.1.1",
+		"kysely": "0.29.4",
 		"oxfmt": "^0.75.0",
 		"oxlint": "1.90.0",
 		"oxlint-tsgolint": "7.0.2005",
 		"typescript": "7.0.2",
 		"vitest": "^5.0.5"
+	},
+	"peerDependencies": {
+		"@effect/platform-bun": "^4.1.0",
+		"@effect/sql-pg": "^4.1.0",
+		"effect": "^4.1.0",
+		"kysely": "^0.29.4"
+	},
+	"peerDependenciesMeta": {
+		"@effect/platform-bun": {
+			"optional": true
+		},
+		"@effect/sql-pg": {
+			"optional": true
+		},
+		"kysely": {
+			"optional": true
+		}
 	}
 }

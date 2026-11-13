@@ -1,4 +1,5 @@
-import { mapSqlState, visitorDb } from '@effect-backend/visitor'
+import { mapSqlState } from '@danielfgray/stompbox/db'
+import { visitorDb } from '@danielfgray/stompbox/visitor'
 import { Context, Effect, Layer, Option } from 'effect'
 import { sql } from 'kysely'
 

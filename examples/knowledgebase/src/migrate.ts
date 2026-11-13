@@ -1,5 +1,5 @@
-import { deliver } from '@effect-backend/delivery'
-import { OwnerPool } from '@effect-backend/visitor'
+import { deliver } from '@danielfgray/stompbox/delivery'
+import { OwnerPool } from '@danielfgray/stompbox/visitor'
 import { BunRuntime, BunServices } from '@effect/platform-bun'
 import { Effect } from 'effect'
 import * as Digest from 'effect/crypto/Digest'
