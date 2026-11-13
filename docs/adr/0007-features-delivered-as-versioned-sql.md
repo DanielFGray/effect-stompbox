@@ -9,7 +9,7 @@ migration files. The runner (`@effect-backend/delivery`) installs and
 upgrades every feature an app uses, the app's own migrations included, in
 one transaction, as the owner role. It records each migration with a SHA-256
 hash of its text, and refuses to run when a migration that already ran has
-changed. The package owns the `auth`, `auth_private` and `effect_backend`
+changed. The package owns the `auth`, `auth_private` and `stompbox`
 schemas. The SQL API that app code and app SQL call (functions, tables and
 columns in `auth`) only grows: a release adds to it and never changes what an
 existing name means. The full design and its tests are in

@@ -1,4 +1,4 @@
-# effect-backend (working name)
+# stompbox
 
 The safest way to ship a multi-user Effect app on Postgres: the database
 decides who may read and write each row, and tests prove it.

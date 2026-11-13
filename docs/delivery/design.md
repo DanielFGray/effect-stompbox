@@ -70,7 +70,7 @@ this covers tables, functions, policies and grants.
 
 ### 4. One record table, with a hash of each migration
 
-`effect_backend.migrations` has one row per migration that ran: feature,
+`stompbox.migrations` has one row per migration that ran: feature,
 number, name, and the SHA-256 of the SQL text after the role names are
 filled in. Before it runs anything, the runner compares the recorded hashes
 with the files and refuses to run when a released migration has changed.
@@ -119,7 +119,7 @@ needs a role name gets it from a function, not from the text.
 
 Package features put their objects in schemas that only the package writes,
 as Supabase's auth server owns the `auth` schema: `auth` for what the visitor
-may reach, `auth_private` for the rest, `effect_backend` for the records of
+may reach, `auth_private` for the rest, `stompbox` for the records of
 rule 4. The app does not create objects there, with one exception: the app
 may put triggers on `auth` tables, with the trigger function in its own
 schema (for example, to create a profile row when a user is created).
@@ -160,8 +160,8 @@ of the code is accepted, because during a deploy the old code runs against
 the migrated database. This closes the release gap.
 
 The API login holds no direct privilege on any object (check C1), so it
-cannot read `effect_backend`. A function
-`effect_backend.feature_versions()`, `SECURITY DEFINER` with a fixed
+cannot read `stompbox`. A function
+`stompbox.feature_versions()`, `SECURITY DEFINER` with a fixed
 `search_path`, returns the versions; the visitor may execute it, and it is on
 the visitor's declared list of functions (check C3). The startup check calls
 it inside a visitor transaction. The version numbers are not secret.
@@ -177,14 +177,14 @@ it inside a visitor transaction. The version numbers are not secret.
 
 ## How we know it works
 
-Tests run against `effect_backend_dev_delivery`, a database separate from
+Tests run against `stompbox_dev_delivery`, a database separate from
 the visitor tests, with the same role contract. The tests use fixture
 features with three versions each, and a fixture app whose migrations were
 written against version 1 and never changed.
 
 1. **Upgrade equals fresh install** (the README check). Install version 1 of
    the fixtures and the fixture app, add rows, upgrade to version 3, and take
-   `pg_dump --schema-only`. Drop the fixture schemas and `effect_backend`,
+   `pg_dump --schema-only`. Drop the fixture schemas and `stompbox`,
    install version 3 fresh in the same database (the role names depend on
    its name), and dump again. The two dumps are equal.
 2. A failing migration in the second of three features leaves all three at

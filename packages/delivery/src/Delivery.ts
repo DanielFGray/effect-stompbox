@@ -33,7 +33,7 @@ export const deliver = Effect.fn('deliver')(function* (features: ReadonlyArray<F
 	const ordered = yield* dependencyOrder(features)
 	const roles = yield* roleContract
 	const bootstrap = yield* prepare(roles, {
-		feature: 'effect_backend',
+		feature: 'stompbox',
 		number: 0,
 		name: 'bootstrap',
 		text: bootstrapSql,
@@ -55,7 +55,7 @@ export const deliver = Effect.fn('deliver')(function* (features: ReadonlyArray<F
 				})
 			yield* Effect.forEach(bootstrap.statements, (s) => sql.unsafe(s), { discard: true })
 			const recorded =
-				yield* sql<Recorded>`select feature, number, sha256 from effect_backend.migrations`
+				yield* sql<Recorded>`select feature, number, sha256 from stompbox.migrations`
 			yield* refuseChanged(recorded, files.flat())
 			return yield* Effect.forEach(files, (featureFiles, i) => {
 				const feature = ordered[i]?.name ?? ''
@@ -68,7 +68,7 @@ export const deliver = Effect.fn('deliver')(function* (features: ReadonlyArray<F
 					pending,
 					(file) =>
 						Effect.forEach(file.statements, (s) => sql.unsafe(s), { discard: true }).pipe(
-							Effect.andThen(sql`insert into effect_backend.migrations (feature, number, name, sha256)
+							Effect.andThen(sql`insert into stompbox.migrations (feature, number, name, sha256)
 							                   values (${file.feature}, ${file.number}, ${file.name}, ${file.sha256})`),
 							Effect.withSpan('deliver.migration', {
 								attributes: { feature, number: file.number },
@@ -90,7 +90,7 @@ export const deliver = Effect.fn('deliver')(function* (features: ReadonlyArray<F
 /**
  * Finds each feature whose version in the database is behind its latest
  * migration, as startup findings. Runs as the visitor, through
- * `effect_backend.feature_versions()`. A database ahead of the code passes,
+ * `stompbox.feature_versions()`. A database ahead of the code passes,
  * because the old code runs against the migrated database during a deploy.
  */
 export const versionsBehind = Effect.fn('versionsBehind')(function* (
@@ -105,11 +105,11 @@ export const versionsBehind = Effect.fn('versionsBehind')(function* (
 		})),
 	)
 	const [{ installed }] = yield* sql`
-    select to_regprocedure('effect_backend.feature_versions()') is not null as installed`.pipe(
+    select to_regprocedure('stompbox.feature_versions()') is not null as installed`.pipe(
 		Effect.flatMap(decodeOne(Schema.Struct({ installed: Schema.Boolean }))),
 	)
 	const versions = installed
-		? yield* sql`select feature, version from effect_backend.feature_versions()`.pipe(
+		? yield* sql`select feature, version from stompbox.feature_versions()`.pipe(
 				Effect.flatMap(Schema.decodeUnknownEffect(Schema.Array(FeatureVersion))),
 			)
 		: []
@@ -211,9 +211,9 @@ const bootstrapSql = `
 -- default privileges say otherwise (check C4). The runner runs as the owner,
 -- so this covers every function a feature creates.
 alter default privileges revoke execute on functions from public;
-create schema if not exists effect_backend;
-revoke all on schema effect_backend from public;
-create table if not exists effect_backend.migrations (
+create schema if not exists stompbox;
+revoke all on schema stompbox from public;
+create table if not exists stompbox.migrations (
   feature text not null,
   number integer not null,
   name text not null,
@@ -221,12 +221,12 @@ create table if not exists effect_backend.migrations (
   ran_at timestamptz not null default now(),
   primary key (feature, number)
 );
-create or replace function effect_backend.feature_versions()
+create or replace function stompbox.feature_versions()
   returns table (feature text, version integer)
   language sql stable security definer
   set search_path = pg_catalog, pg_temp
-as $$ select feature, max(number) from effect_backend.migrations group by feature $$;
-revoke all on function effect_backend.feature_versions() from public;
-grant usage on schema effect_backend to :DATABASE_VISITOR;
-grant execute on function effect_backend.feature_versions() to :DATABASE_VISITOR;
+as $$ select feature, max(number) from stompbox.migrations group by feature $$;
+revoke all on function stompbox.feature_versions() from public;
+grant usage on schema stompbox to :DATABASE_VISITOR;
+grant execute on function stompbox.feature_versions() to :DATABASE_VISITOR;
 `

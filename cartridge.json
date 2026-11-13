@@ -1,25 +1,25 @@
 {
 	"apiVersion": "server-ansible/v2",
-	"name": "effect-backend",
+	"name": "stompbox",
 	"postgres": [
 		{
-			"database": "effect_backend_setlist",
+			"database": "stompbox_setlist",
 			"extensions": ["citext", "pgcrypto", "uuid-ossp"]
 		},
 		{
-			"database": "effect_backend_setlist_base",
+			"database": "stompbox_setlist_base",
 			"extensions": ["citext", "pgcrypto", "uuid-ossp"]
 		},
 		{
-			"database": "effect_backend_dfg_rocks",
+			"database": "stompbox_dfg_rocks",
 			"extensions": ["citext", "pgcrypto", "uuid-ossp"]
 		},
 		{
-			"database": "effect_backend_dfg_rocks_base",
+			"database": "stompbox_dfg_rocks_base",
 			"extensions": ["citext", "pgcrypto", "uuid-ossp"]
 		},
 		{
-			"database": "effect_backend_template",
+			"database": "stompbox_template",
 			"extensions": [
 				"uuid-ossp",
 				"citext",
@@ -31,23 +31,23 @@
 			]
 		},
 		{
-			"database": "effect_backend_dfg_codes",
+			"database": "stompbox_dfg_codes",
 			"extensions": ["citext", "pgcrypto"]
 		},
 		{
-			"database": "effect_backend_visitor",
+			"database": "stompbox_visitor",
 			"extensions": []
 		},
 		{
-			"database": "effect_backend_delivery",
+			"database": "stompbox_delivery",
 			"extensions": []
 		},
 		{
-			"database": "effect_backend_auth",
+			"database": "stompbox_auth",
 			"extensions": ["pgsodium"]
 		},
 		{
-			"database": "effect_backend_knowledgebase_test",
+			"database": "stompbox_knowledgebase_test",
 			"extensions": ["citext", "pgsodium"]
 		}
 	],
@@ -56,85 +56,85 @@
 			"secrets": [
 				{
 					"_tag": "PostgresCredentials",
-					"database": "effect_backend_setlist",
+					"database": "stompbox_setlist",
 					"login": "migration",
 					"urlEnv": "CORPUS_SETLIST_URL"
 				},
 				{
 					"_tag": "PostgresCredentials",
-					"database": "effect_backend_setlist_base",
+					"database": "stompbox_setlist_base",
 					"login": "migration",
 					"urlEnv": "CORPUS_SETLIST_BASE_URL"
 				},
 				{
 					"_tag": "PostgresCredentials",
-					"database": "effect_backend_dfg_rocks",
+					"database": "stompbox_dfg_rocks",
 					"login": "migration",
 					"urlEnv": "CORPUS_DFG_ROCKS_URL"
 				},
 				{
 					"_tag": "PostgresCredentials",
-					"database": "effect_backend_dfg_rocks_base",
+					"database": "stompbox_dfg_rocks_base",
 					"login": "migration",
 					"urlEnv": "CORPUS_DFG_ROCKS_BASE_URL"
 				},
 				{
 					"_tag": "PostgresCredentials",
-					"database": "effect_backend_template",
+					"database": "stompbox_template",
 					"login": "migration",
 					"urlEnv": "CORPUS_TEMPLATE_URL"
 				},
 				{
 					"_tag": "PostgresCredentials",
-					"database": "effect_backend_dfg_codes",
+					"database": "stompbox_dfg_codes",
 					"login": "migration",
 					"urlEnv": "CORPUS_DFG_CODES_URL"
 				},
 				{
 					"_tag": "PostgresCredentials",
-					"database": "effect_backend_visitor",
+					"database": "stompbox_visitor",
 					"login": "migration",
 					"urlEnv": "VISITOR_OWNER_URL"
 				},
 				{
 					"_tag": "PostgresCredentials",
-					"database": "effect_backend_visitor",
+					"database": "stompbox_visitor",
 					"login": "api",
 					"urlEnv": "VISITOR_API_URL"
 				},
 				{
 					"_tag": "PostgresCredentials",
-					"database": "effect_backend_delivery",
+					"database": "stompbox_delivery",
 					"login": "migration",
 					"urlEnv": "DELIVERY_OWNER_URL"
 				},
 				{
 					"_tag": "PostgresCredentials",
-					"database": "effect_backend_delivery",
+					"database": "stompbox_delivery",
 					"login": "api",
 					"urlEnv": "DELIVERY_API_URL"
 				},
 				{
 					"_tag": "PostgresCredentials",
-					"database": "effect_backend_auth",
+					"database": "stompbox_auth",
 					"login": "migration",
 					"urlEnv": "AUTH_OWNER_URL"
 				},
 				{
 					"_tag": "PostgresCredentials",
-					"database": "effect_backend_auth",
+					"database": "stompbox_auth",
 					"login": "api",
 					"urlEnv": "AUTH_API_URL"
 				},
 				{
 					"_tag": "PostgresCredentials",
-					"database": "effect_backend_knowledgebase_test",
+					"database": "stompbox_knowledgebase_test",
 					"login": "migration",
 					"urlEnv": "KNOWLEDGEBASE_DATABASE_URL"
 				},
 				{
 					"_tag": "PostgresCredentials",
-					"database": "effect_backend_knowledgebase_test",
+					"database": "stompbox_knowledgebase_test",
 					"login": "api",
 					"urlEnv": "KNOWLEDGEBASE_AUTH_DATABASE_URL"
 				}

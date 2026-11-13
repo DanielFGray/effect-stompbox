@@ -1,4 +1,4 @@
-# effect-backend
+# stompbox
 
 Packages and a template for multi-user Effect apps on Postgres, where
 row-level security decides what each request may read and write.

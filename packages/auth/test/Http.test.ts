@@ -149,7 +149,7 @@ const settings = ConfigProvider.layer(
 const install = Layer.effectDiscard(
 	Effect.gen(function* () {
 		const sql = yield* OwnerPool
-		yield* sql`drop schema if exists auth, auth_private, effect_backend cascade`
+		yield* sql`drop schema if exists auth, auth_private, stompbox cascade`
 		yield* deliver([auth, passwords]).pipe(Effect.provideService(SqlClient, sql))
 	}),
 )

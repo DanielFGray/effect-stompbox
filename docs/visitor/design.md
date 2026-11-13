@@ -136,7 +136,7 @@ that impossible: `Visitor.run` is the only provider of the visitor's
 
 ## How we know it works
 
-Tests run against a database of their own, `effect_backend_visitor`,
+Tests run against a database of their own, `stompbox_visitor`,
 declared in `cartridge.json` so `ops dev db up` gives it the real role
 contract.
 Each test creates its own small schema with a table under row-level security

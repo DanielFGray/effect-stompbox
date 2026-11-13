@@ -234,7 +234,7 @@ the session the browser sent.
 
 ## Tests
 
-On the database `effect_backend_auth`, declared in `cartridge.json`:
+On the database `stompbox_auth`, declared in `cartridge.json`:
 
 1. A valid session gives its user from `auth.current_user_id()` inside a
    visitor run; an expired, revoked or unknown session gives null; no session

@@ -43,7 +43,7 @@ const settings = ConfigProvider.layer(
 const install = Layer.effectDiscard(
 	Effect.gen(function* () {
 		const sql = yield* OwnerPool
-		yield* sql`drop schema if exists auth, auth_private, effect_backend cascade`
+		yield* sql`drop schema if exists auth, auth_private, stompbox cascade`
 		yield* deliver([auth, passwords]).pipe(Effect.provideService(SqlClient, sql))
 	}),
 )
@@ -248,8 +248,8 @@ layer(live, { excludeTestServices: true })('Passwords', (it) => {
 const approvedSurface = [
 	'function auth.current_session_id()',
 	'function auth.current_user_id()',
-	'function effect_backend.feature_versions()',
+	'function stompbox.feature_versions()',
 	'schema auth',
-	'schema effect_backend',
+	'schema stompbox',
 	'schema public',
 ]

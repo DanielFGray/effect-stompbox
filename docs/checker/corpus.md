@@ -442,7 +442,7 @@ image that the platform cartridge pins (`src/devdb/Cluster.ts:20-23,43-55`).
    `DATABASE_AUTHENTICATOR`, which its `.gmrc` requires as `!ENV`. A
    production migrate would fail at settings parse.
 7. Answered: the shared `ops-dev-pg17` cluster. `cartridge.json` in this
-   repo declares one database per corpus build, named `effect_backend_<build>`,
+   repo declares one database per corpus build, named `stompbox_<build>`,
    so `ops dev db up` gives each its own roles and extensions, and
    `scripts/corpus-build.sh` builds them. A `_base` build has committed
    migrations only.

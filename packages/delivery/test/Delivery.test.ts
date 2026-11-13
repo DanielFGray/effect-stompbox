@@ -69,11 +69,11 @@ const ownerSql = <A, E>(f: (sql: SqlClient) => Effect.Effect<A, E>) =>
 	Effect.flatMap(Effect.service(OwnerPool), (owner) => f(owner))
 
 const reset = ownerSql(
-	(sql) => sql`drop schema if exists fx_app, fx_auth, effect_backend cascade`,
+	(sql) => sql`drop schema if exists fx_app, fx_auth, stompbox cascade`,
 )
 
 const recordedCount = ownerSql((sql) =>
-	sql`select count(*)::int as n from effect_backend.migrations`.pipe(
+	sql`select count(*)::int as n from stompbox.migrations`.pipe(
 		Effect.flatMap(
 			Schema.decodeUnknownEffect(Schema.Tuple([Schema.Struct({ n: Schema.Int })])),
 		),
@@ -242,9 +242,9 @@ layer(live, { excludeTestServices: true })('deliver', (it) => {
 
 /** What the fixture features grant the visitor, reviewed by hand. */
 const approvedSurface = [
-	'function effect_backend.feature_versions()',
+	'function stompbox.feature_versions()',
 	'function fx_auth.current_user_id()',
-	'schema effect_backend',
+	'schema stompbox',
 	'schema fx_app',
 	'schema fx_auth',
 	'schema public',

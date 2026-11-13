@@ -1,4 +1,4 @@
-# effect-backend - Agent Guidelines
+# stompbox - Agent Guidelines
 
 ## Runtime & Commands
 
