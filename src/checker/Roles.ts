@@ -7,7 +7,9 @@ import { findings } from './Finding.ts'
 
 /**
  * The role contract of ADR 0002. The provisioner names every role after the
- * database, so the names follow from `current_database()`.
+ * database it made, and that database's owner role also owns its `_test` and
+ * `_shadow` copies. So the names follow from the owner of the connected
+ * database, not from its name: a name ending in `_test` may be the app's own.
  */
 export class RoleContract extends Schema.Class<
 	RoleContract,
@@ -20,7 +22,7 @@ export class RoleContract extends Schema.Class<
 
 /**
  * The roles of the connected database. The visitor role's name follows from
- * the database name unless `DATABASE_VISITOR` names it, for a host whose roles
+ * the owner's name unless `DATABASE_VISITOR` names it, for a host whose roles
  * use other names.
  */
 export const roleContract = Effect.gen(function* () {
@@ -30,9 +32,11 @@ export const roleContract = Effect.gen(function* () {
 		Request: Schema.Void,
 		Result: RoleContract,
 		execute: () => sql`
-      select current_database() || '_owner' as owner,
-             current_database() || '_visitor' as visitor,
-             'alchemy_' || current_database() || '_api' as api`,
+      select o.rolname as owner,
+             regexp_replace(o.rolname, '_owner$', '') || '_visitor' as visitor,
+             'alchemy_' || regexp_replace(o.rolname, '_owner$', '') || '_api' as api
+      from pg_database d join pg_roles o on o.oid = d.datdba
+      where d.datname = current_database()`,
 	})(undefined)
 	return new RoleContract({
 		owner: derived.owner,

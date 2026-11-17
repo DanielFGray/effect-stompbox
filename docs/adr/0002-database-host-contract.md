@@ -28,6 +28,10 @@ The names follow server-ansible's convention
 | Migration login | `alchemy_<db>_migration` | yes   | owner, inherits      | Runs migrations, the worker, and session checks (`docs/auth/design.md`).                        |
 | API login       | `alchemy_<db>_api`       | yes   | visitor, `NOINHERIT` | The visitor pool. Has no rights until a transaction runs `set_config('role', <visitor>, true)`. |
 
+`<db>` is the database the host provisioned. Its `_test` and `_shadow` copies
+are owned by the same `<db>_owner` and use the same roles, so the checker reads
+`<db>` from the owner of the connected database, not from its name.
+
 The app receives:
 
 - `DATABASE_URL`: the migration login (the owner pool);
