@@ -3,9 +3,12 @@ import { Console, Effect, FileSystem, Path, Schema, Stream } from 'effect'
 import * as ChildProcess from 'effect/process/ChildProcess'
 import * as ChildProcessSpawner from 'effect/process/ChildProcessSpawner'
 
+import { releaseManifest } from './releaseManifest.ts'
+
 /**
  * Tags the version in `package.json` at HEAD as `v<version>`, on a new commit
- * that holds the built `dist/`. The commit is made in a temporary detached
+ * that holds the built `dist/` and a manifest without install scripts
+ * (`releaseManifest`). The commit is made in a temporary detached
  * worktree, so the current branch and the main checkout do not move. Nothing
  * is pushed; the printed `git push` line is for the user.
  *
@@ -104,7 +107,12 @@ const commitTag = Effect.fnUntraced(function* (root: string, tag: string) {
 	)
 
 	yield* fs.copy(path.join(root, 'dist'), path.join(tree, 'dist'))
-	yield* git(tree, ['add', '-f', 'dist'])
+	const manifest = path.join(tree, 'package.json')
+	yield* fs.writeFileString(
+		manifest,
+		yield* releaseManifest(yield* fs.readFileString(manifest)),
+	)
+	yield* git(tree, ['add', '-f', 'dist', 'package.json'])
 	yield* git(tree, ['commit', '-m', `release: ${tag}`])
 	yield* git(tree, ['tag', '-a', tag, '-m', `release: ${tag}`])
 }, Effect.scoped)
