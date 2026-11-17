@@ -12,10 +12,12 @@ shopt -s nullglob
 
 root=$(cd "$(dirname "$0")/.." && pwd)
 cd "$root"
-# .env values are not shell-quoted (ROOT_DATABASE_URL holds an "&"), so read
-# only the corpus URLs, which are plain.
+# Read only the corpus URLs. ops dev db writes each value in single quotes
+# and refuses a value that holds one, so dropping one surrounding pair is exact;
+# an older unquoted .env reads the same.
 while IFS== read -r key value; do
-	export "$key=$value"
+	value=${value#\'}
+	export "$key=${value%\'}"
 done < <(grep "^CORPUS_" .env)
 scratch_root=$(mktemp -d)
 trap 'rm -rf "$scratch_root"' EXIT
