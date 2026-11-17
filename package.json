@@ -72,7 +72,6 @@
 		"lint": "oxlint --type-aware",
 		"fmt": "oxfmt .",
 		"fmt:check": "oxfmt --check .",
-		"prepare": "effect-tsgo patch --typescript --oxlint",
 		"test": "bun --bun vitest run",
 		"release": "bun scripts/release.ts"
 	},
