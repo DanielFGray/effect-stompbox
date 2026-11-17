@@ -1,5 +1,5 @@
 export { Finding, Level } from './Finding.ts'
 export { c7 } from './Functions.ts'
 export { c3, c4, visitorReach } from './Reach.ts'
-export { c1, c2, RoleContract, roleContract } from './Roles.ts'
+export { c1, c2, RoleContract, RoleMissing, roleContract } from './Roles.ts'
 export { c5, c6, c8 } from './RowSecurity.ts'

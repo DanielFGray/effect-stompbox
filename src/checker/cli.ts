@@ -86,6 +86,12 @@ const database = PgClient.layerConfig({
 Command.make('checker').pipe(
 	Command.withSubcommands([check, writeSurfaceCommand]),
 	Command.run({ version: '0.0.0' }),
+	// A host that lacks the role contract gets one line, not a stack trace.
+	Effect.catchTag('RoleMissing', (error) =>
+		Console.error(error.message).pipe(
+			Effect.andThen(Effect.sync(() => (process.exitCode = 1))),
+		),
+	),
 	Effect.provide(Layer.mergeAll(BunServices.layer, database)),
 	BunRuntime.runMain,
 )

@@ -418,13 +418,18 @@ describe('Visitor startup check', () => {
 		Effect.gen(function* () {
 			const owner = yield* Config.String('VISITOR_OWNER_URL')
 			const ownerRole = owner.replace(
-				/^postgres:\/\/alchemy_(\w+)_migration:.*$/,
+				/^postgres(?:ql)?:\/\/alchemy_(\w+)_migration:.*$/,
 				'$1_owner',
 			)
 			const error = yield* Layer.build(
 				Visitor.layer.pipe(Layer.provide(pools({ DATABASE_VISITOR: ownerRole }))),
 			).pipe(Effect.flip)
 			assert.instanceOf(error, StartupCheckFailed)
+			if (error instanceof StartupCheckFailed)
+				assert.include(
+					error.findings.map((f) => f.check),
+					'C1',
+				)
 		}),
 	)
 })

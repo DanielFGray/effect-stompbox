@@ -7,7 +7,16 @@ import * as Path from 'effect/Path'
 import { ChildProcess, ChildProcessSpawner } from 'effect/process'
 import { SqlClient } from 'effect/sql/SqlClient'
 
-import { c3, c4, roleContract, visitorReach } from '../../src/checker/index.ts'
+import {
+	c3,
+	c4,
+	c5,
+	c6,
+	c7,
+	c8,
+	roleContract,
+	visitorReach,
+} from '../../src/checker/index.ts'
 import { deliver, DeliveryRefused, Feature, Features } from '../../src/delivery/index.ts'
 import {
 	ApiPool,
@@ -279,5 +288,54 @@ layer(live, { excludeTestServices: true })('startup check', (it) => {
 				yield* startVisitor(yield* versions(3, 3, 2))
 				yield* startVisitor(yield* versions(3, 3, 1))
 			}),
+	)
+})
+
+/** Sets `DATABASE_VISITOR` for the effects it provides, as the host does. */
+const visitorNamed = (role: string) =>
+	ConfigProvider.layer(
+		Effect.succeed(ConfigProvider.fromUnknown({ DATABASE_VISITOR: role })),
+	)
+
+layer(live, { excludeTestServices: true })('role contract', (it) => {
+	it.effect('names a visitor role the database lacks, before any check queries it', () =>
+		Effect.gen(function* () {
+			yield* reset
+			const error = yield* ownerSql((sql) =>
+				Effect.gen(function* () {
+					const roles = yield* roleContract
+					return yield* c5(roles)
+				}).pipe(
+					Effect.provideService(SqlClient, sql),
+					Effect.provide(visitorNamed('no_such_visitor_role')),
+					Effect.flip,
+				),
+			)
+			assert.strictEqual(error._tag, 'RoleMissing')
+			assert.include(error.message, 'no_such_visitor_role')
+			assert.include(error.message, 'DATABASE_VISITOR')
+		}),
+	)
+
+	it.effect('reports nothing on a database with valid roles and no app schema', () =>
+		Effect.gen(function* () {
+			yield* reset
+			const findings = yield* ownerSql((sql) =>
+				Effect.gen(function* () {
+					const roles = yield* roleContract
+					return [
+						...(yield* c4(roles)),
+						...(yield* c5(roles)),
+						...(yield* c6(roles)),
+						...(yield* c7(roles)),
+						...(yield* c8(roles)),
+					]
+				}).pipe(Effect.provideService(SqlClient, sql)),
+			)
+			assert.deepStrictEqual(
+				findings.map((f) => `${f.check} ${f.object}: ${f.problem}`),
+				[],
+			)
+		}),
 	)
 })

@@ -21,9 +21,24 @@ export class RoleContract extends Schema.Class<
 }) {}
 
 /**
+ * The visitor role is named but absent from this database, so the host did
+ * not provision the contract. Raised before any check runs: Postgres rejects a
+ * privilege question about an unknown role name with an error, not a false.
+ */
+export class RoleMissing extends Schema.TaggedError<
+	RoleMissing,
+	{ readonly brand: unique symbol }
+>()('RoleMissing', {
+	role: Schema.String,
+	source: Schema.String,
+	message: Schema.String,
+}) {}
+
+/**
  * The roles of the connected database. The visitor role's name follows from
  * the owner's name unless `DATABASE_VISITOR` names it, for a host whose roles
- * use other names.
+ * use other names. Fails with `RoleMissing` when the visitor role does not
+ * exist. The API login is not checked here: C1 reports its absence.
  */
 export const roleContract = Effect.gen(function* () {
 	const sql = yield* SqlClient
@@ -38,11 +53,25 @@ export const roleContract = Effect.gen(function* () {
       from pg_database d join pg_roles o on o.oid = d.datdba
       where d.datname = current_database()`,
 	})(undefined)
-	return new RoleContract({
+	const contract = new RoleContract({
 		owner: derived.owner,
 		api: derived.api,
 		visitor: Option.getOrElse(visitor, () => derived.visitor),
 	})
+	const present = yield* SqlSchema.findOne({
+		Request: Schema.String,
+		Result: Schema.Struct({ present: Schema.Boolean }),
+		execute: (name) => sql`select to_regrole(${name}) is not null as present`,
+	})(contract.visitor)
+	if (!present.present) {
+		const source = Option.isSome(visitor) ? 'DATABASE_VISITOR' : "the owner's name"
+		return yield* new RoleMissing({
+			role: contract.visitor,
+			source,
+			message: `visitor role "${contract.visitor}" (named by ${source}) does not exist in this database`,
+		})
+	}
+	return contract
 })
 
 /**
@@ -96,9 +125,7 @@ export const c2 = Effect.fn('c2')(function* (roles: RoleContract) {
 		rule: 'The visitor role is a NOLOGIN group that owns nothing and reaches no other role (ADR 0002).',
 	})(sql`
     with r as (select to_regrole(${visitor}) as visitor)
-    select ${visitor} as object, 'does not exist' as problem from r where visitor is null
-    union all
-    select ${visitor}, problem from r join pg_roles p on p.oid = r.visitor,
+    select ${visitor} as object, problem from r join pg_roles p on p.oid = r.visitor,
       lateral (values
         (p.rolcanlogin, 'can log in'),
         (p.rolsuper, 'is a superuser'),
