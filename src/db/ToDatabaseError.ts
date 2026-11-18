@@ -1,4 +1,4 @@
-import { Effect, Option, Schema } from 'effect'
+import { Array as Arr, Effect, Option, Schema } from 'effect'
 import { isSqlError, type SqlError } from 'effect/sql/SqlError'
 
 import { DatabaseError, PostgresReport } from './DatabaseError.ts'
@@ -12,15 +12,29 @@ import { DatabaseError, PostgresReport } from './DatabaseError.ts'
  */
 export const toDatabaseError = <A, E, R>(self: Effect.Effect<A, E | SqlError, R>) =>
 	Effect.catchIf(self, isSqlError, (error) => {
-		const report = Schema.decodeUnknownOption(PostgresReport)(error.reason.cause)
+		const cause = error.reason.cause
+		const report = Schema.decodeUnknownOption(PostgresReport)(cause)
 		return Effect.fail(
-			new DatabaseError({
-				message: Option.match(report, {
-					onNone: () => 'Database call failed',
-					onSome: ({ code, message }) => `[${code}] ${message}`,
-				}),
-				report,
-				cause: error,
-			}),
+			new DatabaseError({ message: logMessage(report, cause), report, cause: error }),
 		)
 	})
+
+/** Every part of the report, so one log line explains the refusal. */
+const logMessage = (report: Option.Option<PostgresReport>, cause: unknown) =>
+	Option.match(report, {
+		onNone: () =>
+			Option.match(Schema.decodeUnknownOption(DriverFailure)(cause), {
+				onNone: () => 'Database call failed',
+				onSome: (failure) => `Database call failed: ${failure.message}`,
+			}),
+		onSome: ({ code, message, detail, hint, constraint }) =>
+			Arr.getSomes([
+				Option.some(`[${code}] ${message}`),
+				Option.map(detail, (text) => `detail: ${text}`),
+				Option.map(hint, (text) => `hint: ${text}`),
+				Option.map(constraint, (name) => `constraint: ${name}`),
+			]).join('; '),
+	})
+
+/** A driver failure that carries no Postgres report, such as a lost connection. */
+const DriverFailure = Schema.Struct({ message: Schema.String })

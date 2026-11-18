@@ -257,6 +257,7 @@ layer(live, { excludeTestServices: true })('Visitor.run', (it) => {
 					Option.map(error.report, ({ code, constraint }) => [code, constraint]),
 					Option.some(['23505', Option.some('body_unique')]),
 				)
+				assert.include(error.message, 'constraint: body_unique')
 				assert.deepStrictEqual(yield* t.allBodies, [])
 			}),
 	)
@@ -470,6 +471,21 @@ layer(live, { excludeTestServices: true })('visitorDb and ownerDb', (it) => {
 				),
 			)
 			assert.deepStrictEqual(none, Option.none())
+		}),
+	)
+
+	it.effect('runs a statement with no returning through exec', () =>
+		Effect.gen(function* () {
+			const t = yield* fixture
+			yield* as('a')(t.insert('draft'))
+			yield* owner.exec((k) =>
+				k
+					.withSchema(t.name)
+					.updateTable('notes')
+					.set({ body: 'final' })
+					.where('body', '=', 'draft'),
+			)
+			assert.deepStrictEqual(yield* t.allBodies, ['final'])
 		}),
 	)
 

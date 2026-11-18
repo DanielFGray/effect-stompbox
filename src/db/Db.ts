@@ -24,20 +24,24 @@ export const db = <Tables>() => runnerOn<Tables, SqlClient>(Effect.service(SqlCl
  */
 export const runnerOn = <Tables, R>(client: Effect.Effect<SqlClient, never, R>) => {
 	const kysely = compiler<Tables>()
+	const run = (build: (db: Kysely<Tables>) => Compilable<unknown>) =>
+		Effect.gen(function* () {
+			const sql = yield* client
+			const query = build(kysely).compile()
+			return yield* sql.unsafe(query.sql, query.parameters).pipe(toDatabaseError)
+		})
 	const rows = <A, I, O>(
 		schema: Schema.Codec<A, I>,
 		build: (db: Kysely<Tables>) => Compilable<O> & Fits<O, I>,
 	) =>
-		Effect.gen(function* () {
-			const sql = yield* client
-			const query = build(kysely).compile()
-			const raw = yield* sql.unsafe(query.sql, query.parameters).pipe(toDatabaseError)
-			return yield* Schema.decodeUnknownEffect(Schema.Array(schema))(raw).pipe(
-				Effect.orDie,
-			)
-		})
+		Effect.flatMap(run(build), (raw) =>
+			Schema.decodeUnknownEffect(Schema.Array(schema))(raw).pipe(Effect.orDie),
+		)
 
 	return {
+		/** Runs a statement whose rows the caller does not read, such as an update with no `returning`. */
+		exec: (build: (db: Kysely<Tables>) => Compilable<unknown>) =>
+			Effect.asVoid(run(build)),
 		/** Every row. */
 		all: rows,
 		/** The first row, or none. */
