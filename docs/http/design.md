@@ -1,8 +1,15 @@
 # HTTP failure handling: design
 
 Status: implemented in `src/http`. Shared under ADR 0008: setlist,
-postgres.garden and the template carry their own copies of this code today,
-differing only in import paths and per-app data.
+postgres.garden and the template carry their own versions of this code today.
+Those versions differ from the package in what reaches the wire: setlist
+answers refusals with a `reason` on the generic classes (`Conflict`
+`username_taken`, `InvalidOperation` `weak_password`, `Unauthorized`
+`invalid_credentials`, a `Locked` 423), where the package gives each app
+refusal its own tagged class. Adopting the package changes those answers'
+`_tag` and body, and the client code that reads them. The template and
+postgres.garden build `DatabaseError` from `pg` errors, so they adopt `/db`
+(queries on `SqlClient`) before this.
 
 ## What it is
 
@@ -123,8 +130,10 @@ only the codes it reacts to.
 
 ## Client messages
 
-`errorMessage` takes any decoded API error and shows its `message`, with the
-trace id for `InternalError`. A transport failure gets fixed text. App code
+`errorMessage` takes any value a failed call produced and shows a decoded API
+error's `message`, with the trace id for `InternalError`. A transport failure,
+or any value that is not an error with a message, gets fixed text. Text a form
+library makes for a field is the app's to show. App code
 that treats one refusal differently matches its `_tag`; the package keeps no
 list of app classes.
 
