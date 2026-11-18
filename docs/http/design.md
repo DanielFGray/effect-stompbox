@@ -26,6 +26,7 @@ Subpath exports of `@danielfgray/stompbox` (ADR 0009):
 | `@danielfgray/stompbox/db`          | Kysely runner `db`, `DatabaseError`, `onSqlState`           | server            |
 | `@danielfgray/stompbox/visitor`     | `Visitor.run`, `visitorDb`, `ownerDb` (bound `db`)          | server            |
 | `@danielfgray/stompbox/worker`      | `effectTask`, `promiseTask`, `runWorker`, `Worker.job` span | worker            |
+| `@danielfgray/stompbox/mail`        | `Mailer` and adapters, `EmailDelivery`, `mailKind`          | worker            |
 
 `/db` holds the Kysely runner every app uses, with or without row-level
 security: Kysely compiles the query, the ambient `SqlClient` runs it, and a
