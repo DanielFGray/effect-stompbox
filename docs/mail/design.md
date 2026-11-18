@@ -99,3 +99,64 @@ limiter module; the worker's process was not traced in setlist and dfg.rocks):
 Valkey keys start with `VALKEY_KEY_PREFIX` and `rl:`. A memory store counts
 per process, so an app that runs the API and the worker as two processes with
 a memory store applies the cap twice over; run the worker with Valkey.
+
+## Invitation task factory
+
+Every app that invites people to a group (a family, a band, an
+organization) has the same job: load the invitation, build a link, send one
+mail. The SQL that loads it differs per app, so `invitationTask` is a factory
+that takes the differences:
+
+```ts
+const sendBandInvite = invitationTask({
+	job: 'band_invitations__send_invite', // the name the SQL trigger queues
+	group: 'band', // the template reads it as [[group]]
+	acceptPath: '/invitations/accept',
+	rootUrl: Config.String('VITE_ROOT_URL'),
+	load: (id) => /* Effect<Option<LoadedInvitation>> over the app's tables */,
+})
+// in the app's task list:
+[options.job]: sendBandInvite(context)
+```
+
+The result is an `effectTask` (`/worker`). It decodes `{ id }`, calls `load`,
+and sends the declared kind `invitationMail` through `EmailDelivery`. The
+app adds `invitationMail` to its `kinds` and ships one `invitation.mjml`
+that reads `group`, `groupName`, `inviterName` (null when there is none) and
+`link`. The subject is `You have been invited to <groupName>`.
+
+`load` returns `Option<{ email, code, groupName, inviterName }>`:
+
+- **None** (accepted or declined before the job ran): the job succeeds and
+  sends nothing. Setlist and dfg.rocks do the same; a retry would find the
+  same.
+- **`email` none** (an invitation to an account that has no address): the
+  job logs a warning and succeeds. Setlist logs an error and returns; dfg.rocks returns silently.
+
+**Link.** `<rootUrl><acceptPath>?id=<id>#token=<code>`. The code travels in
+the fragment, which no HTTP request carries, so it stays out of server logs
+and `Referer`. The id is not secret and stays in the query. An app that now
+links `?id=…&code=…` (setlist, dfg.rocks) must change its accept page to read
+`code` from `#token=`.
+
+**Account or new address.** Both copies already tell them apart by the row:
+an invitation to a new address has an `email` and a `code`; one to an existing
+account has a `user_id` and no `code`, and goes to that account's address.
+The factory keeps this: no `code` means no fragment. Which address an account
+gets is the app's loader: setlist takes the primary address, dfg.rocks takes
+the primary, then the verified one (`is_primary desc, is_verified desc`).
+
+**Stored code.** All four copies (the template, postgres.garden, setlist, dfg.rocks) store the invitation code in plaintext
+(`code text`, 14 hex characters from `gen_random_bytes(7)` in the template),
+because the accept function compares the code the reader sends with the
+column. They do not differ, so there is no hashed copy to follow. The
+template's account mail hashes tokens (B2), but its invitation code is plain.
+So the loader reads the code from the row, and no app must change its SQL for
+the factory. Hashing the invitation code is a separate change: the SQL would
+mint the code, store its hash, and pass the plaintext in the job payload,
+which the factory's `{ id }` payload does not carry.
+
+**Template and postgres.garden.** They queue
+`organization_invitations__send_invite` and have no task (research B1), so
+their invitations are never mailed. Calling `invitationTask` for that job
+name fixes it.
