@@ -18,14 +18,14 @@ What a client receives when a request fails, decided in one place:
 
 Subpath exports of `@danielfgray/stompbox` (ADR 0009):
 
-| Import                              | Holds                                               | Bundle            |
-| ----------------------------------- | --------------------------------------------------- | ----------------- |
-| `@danielfgray/stompbox/http`        | generic error classes, `boundaryErrors`             | client and server |
-| `@danielfgray/stompbox/http/server` | `FailureBoundaryLayer.make`, `DatabaseAnswers.make` | server            |
-| `@danielfgray/stompbox/http/client` | `errorMessage`                                      | client            |
-| `@danielfgray/stompbox/db`          | Kysely runner `db`, `DatabaseError`, `onSqlState`   | server            |
-| `@danielfgray/stompbox/visitor`     | `Visitor.run`, `visitorDb`, `ownerDb` (bound `db`)  | server            |
-| `@danielfgray/stompbox/worker`      | `effectTask`, `promiseTask`, the `Worker.job` span  | worker            |
+| Import                              | Holds                                                       | Bundle            |
+| ----------------------------------- | ----------------------------------------------------------- | ----------------- |
+| `@danielfgray/stompbox/http`        | generic error classes, `boundaryErrors`                     | client and server |
+| `@danielfgray/stompbox/http/server` | `FailureBoundaryLayer.make`, `DatabaseAnswers.make`         | server            |
+| `@danielfgray/stompbox/http/client` | `errorMessage`                                              | client            |
+| `@danielfgray/stompbox/db`          | Kysely runner `db`, `DatabaseError`, `onSqlState`           | server            |
+| `@danielfgray/stompbox/visitor`     | `Visitor.run`, `visitorDb`, `ownerDb` (bound `db`)          | server            |
+| `@danielfgray/stompbox/worker`      | `effectTask`, `promiseTask`, `runWorker`, `Worker.job` span | worker            |
 
 `/db` holds the Kysely runner every app uses, with or without row-level
 security: Kysely compiles the query, the ambient `SqlClient` runs it, and a

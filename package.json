@@ -60,6 +60,11 @@
 			"types": "./dist/testing/index.d.ts",
 			"default": "./dist/testing/index.js"
 		},
+		"./worker": {
+			"stompbox-source": "./src/worker/index.ts",
+			"types": "./dist/worker/index.d.ts",
+			"default": "./dist/worker/index.js"
+		},
 		"./visitor": {
 			"stompbox-source": "./src/visitor/index.ts",
 			"types": "./dist/visitor/index.d.ts",
@@ -83,6 +88,7 @@
 		"@effect/vitest": "4.1.1",
 		"@types/bun": "^1.4.4",
 		"effect": "4.1.1",
+		"graphile-worker": "0.18.0",
 		"kysely": "0.29.4",
 		"oxfmt": "^0.75.0",
 		"oxlint": "1.90.0",
@@ -94,6 +100,7 @@
 		"@effect/platform-bun": "^4.1.0",
 		"@effect/sql-pg": "^4.1.0",
 		"effect": "^4.1.0",
+		"graphile-worker": "^0.18.0",
 		"kysely": "^0.29.4"
 	},
 	"peerDependenciesMeta": {
@@ -101,6 +108,9 @@
 			"optional": true
 		},
 		"@effect/sql-pg": {
+			"optional": true
+		},
+		"graphile-worker": {
 			"optional": true
 		},
 		"kysely": {
